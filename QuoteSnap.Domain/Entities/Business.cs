@@ -58,6 +58,8 @@ public class Business : BaseEntity
     public SubscriptionPlan SubscriptionPlan { get; set; }
         = SubscriptionPlan.Free;
 
+    public Subscription? Subscription { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     // Navigation
@@ -78,4 +80,13 @@ public class Business : BaseEntity
 
     public ICollection<Receipt> Receipts { get; set; }
     = new List<Receipt>();
+
+    public ICollection<EmailConnection> EmailConnections { get; set; }
+    = new List<EmailConnection>();
+
+    public ICollection<DocumentDelivery> DocumentDeliveries { get; set; }
+    = new List<DocumentDelivery>();
+
+    public ICollection<Notification> Notifications { get; set; }
+    = new List<Notification>();
 }

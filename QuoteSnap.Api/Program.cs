@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -6,11 +7,15 @@ using Microsoft.OpenApi.Models;
 using QuoteSnap.Api.Services;
 using QuoteSnap.Application.Common.Interfaces;
 using QuoteSnap.Application.Email;
+using QuoteSnap.Application.Security;
 using QuoteSnap.Infrastructure.Authentication;
+using QuoteSnap.Infrastructure.BackgroundJobs;
 using QuoteSnap.Infrastructure.Email;
 using QuoteSnap.Infrastructure.Identity;
 using QuoteSnap.Infrastructure.Persistence;
+using QuoteSnap.Infrastructure.Security;
 using QuoteSnap.Infrastructure.Services;
+using QuoteSnap.Infrastructure.Subscriptions;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,8 +30,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // ASP.NET Core Identity
-builder.Services
-    .AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
+builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
     {
         options.Password.RequireDigit = true;
         options.Password.RequireLowercase = true;
@@ -55,6 +59,14 @@ if (string.IsNullOrWhiteSpace(jwtSettings.Key))
         "JWT signing key is missing.");
 }
 
+builder.Services.Configure<SubscriptionSettings>(
+    builder.Configuration.GetSection(
+        SubscriptionSettings.SectionName));
+
+builder.Services.AddScoped<SubscriptionService>();
+
+builder.Services.AddHostedService<
+    SubscriptionLifecycleWorker>();
 // JWT Authentication
 builder.Services
     .AddAuthentication(options =>
@@ -98,8 +110,19 @@ builder.Services.AddScoped<QuoteService>();
 builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<ReceiptService>();
 builder.Services.AddScoped<PdfService>();
+builder.Services.AddScoped<NotificationService>();
 
 builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddHostedService<NotificationWorker>();
+
+builder.Services.Configure<SystemEmailSettings>(
+    builder.Configuration.GetSection(
+        SystemEmailSettings.SectionName));
+
+builder.Services.AddHttpClient<
+    ISystemEmailService,
+    BrevoSystemEmailService>();
 
 builder.Services.AddScoped<
     ICurrentUserService,
@@ -114,6 +137,21 @@ builder.Services.AddScoped<IEmailService, GmailEmailService>();
 builder.Services.AddScoped<InvoiceEmailService>();
 
 builder.Services.AddScoped<GoogleOAuthService>();
+
+builder.Services.AddDataProtection()
+    .SetApplicationName("QuoteSnap");
+
+builder.Services.AddScoped<ITokenProtectionService,TokenProtectionService>();
+
+builder.Services.AddScoped<GoogleOAuthStateService>();
+
+builder.Services.AddScoped<EmailConnectionService>();
+
+builder.Services.AddScoped<GoogleOAuthService>();
+
+builder.Services.AddScoped<GoogleOAuthStateService>();
+
+builder.Services.AddScoped<DocumentDeliveryService>();
 
 // Swagger
 builder.Services.AddSwaggerGen(options =>

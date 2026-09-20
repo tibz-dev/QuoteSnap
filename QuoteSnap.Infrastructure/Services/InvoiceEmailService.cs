@@ -1,9 +1,12 @@
-using System.Net;
 using Microsoft.EntityFrameworkCore;
 using QuoteSnap.Application.Common.Interfaces;
 using QuoteSnap.Application.Email;
 using QuoteSnap.Application.Invoices;
+using QuoteSnap.Domain.Entities;
+using QuoteSnap.Domain.Enums;
+using QuoteSnap.Infrastructure.Pdf;
 using QuoteSnap.Infrastructure.Persistence;
+using System.Net;
 
 namespace QuoteSnap.Infrastructure.Services;
 
@@ -33,147 +36,206 @@ public class InvoiceEmailService
     {
         var businessId = GetBusinessId();
 
-        var invoice = await _dbContext.Invoices
-            .AsNoTracking()
-            .Include(x => x.Customer)
-            .FirstOrDefaultAsync(
-                x =>
-                    x.Id == invoiceId &&
-                    x.BusinessId == businessId,
-                cancellationToken);
+        var invoice =
+            await _dbContext.Invoices
+                .AsNoTracking()
+                .Include(x => x.Customer)
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.Id == invoiceId &&
+                        x.BusinessId == businessId,
+                    cancellationToken);
 
         if (invoice is null)
-            throw new ArgumentException("Invoice not found.");
+        {
+            throw new InvalidOperationException(
+                "Invoice could not be found.");
+        }
 
-        var business = await _dbContext.Businesses
-            .AsNoTracking()
-            .FirstOrDefaultAsync(
-                x => x.Id == businessId,
-                cancellationToken);
+        var business =
+            await _dbContext.Businesses
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.Id == businessId,
+                    cancellationToken);
 
         if (business is null)
+        {
             throw new InvalidOperationException(
                 "Business could not be found.");
+        }
 
         var recipient =
-            string.IsNullOrWhiteSpace(request.To)
-                ? invoice.Customer.Email
-                : request.To.Trim();
+            !string.IsNullOrWhiteSpace(request.To)
+                ? request.To.Trim()
+                : invoice.Customer?.Email?.Trim();
 
         if (string.IsNullOrWhiteSpace(recipient))
         {
             throw new ArgumentException(
-                "The customer does not have an email address.");
+                "A recipient email address is required.");
         }
 
-        var pdf =
-            await _pdfService.GenerateInvoiceAsync(invoiceId);
-
-        if (pdf is null)
-            throw new InvalidOperationException(
-                "Invoice PDF could not be generated.");
-
-        var subject =
-            string.IsNullOrWhiteSpace(request.Subject)
-                ? $"Invoice {invoice.InvoiceNumber} from {business.Name}"
-                : request.Subject.Trim();
-
-        var customMessage =
-            string.IsNullOrWhiteSpace(request.Message)
-                ? "Please find your invoice attached."
-                : request.Message.Trim();
-
-        var htmlBody = BuildHtmlBody(
-            business.Name,
-            invoice.Customer.Name,
-            invoice.InvoiceNumber,
-            invoice.CurrencyCode,
-            invoice.Total,
-            invoice.DueDate,
-            customMessage);
-
-        var message = new EmailMessage
-        {
-            To = recipient,
-            Subject = subject,
-            HtmlBody = htmlBody,
-
-            ReplyTo = string.IsNullOrWhiteSpace(business.Email)
-                ? null
-                : business.Email,
-
-            Attachments =
+        var delivery =
+            new DocumentDelivery
             {
-                new EmailAttachment
-                {
-                    FileName = pdf.Value.FileName,
-                    ContentType = "application/pdf",
-                    Content = pdf.Value.Content
-                }
-            }
-        };
+                BusinessId = businessId,
+                DocumentType = DocumentType.Invoice,
+                DocumentId = invoice.Id,
+                DocumentNumber = invoice.InvoiceNumber,
+                Channel = DeliveryChannel.Email,
+                Recipient = recipient,
+                Status = DeliveryStatus.Pending,
+                Provider = "Google"
+            };
 
-        return await _emailService.SendAsync(
-            message,
+        _dbContext.DocumentDeliveries.Add(delivery);
+
+        await _dbContext.SaveChangesAsync(
             cancellationToken);
+
+        try
+        {
+            var pdf =
+                await _pdfService.GenerateInvoiceAsync(
+                    invoiceId);
+
+            if (pdf is null)
+            {
+                throw new InvalidOperationException(
+                    "Invoice PDF could not be generated.");
+            }
+
+            var pdfResult = pdf.Value;
+
+            var subject =
+                !string.IsNullOrWhiteSpace(request.Subject)
+                    ? request.Subject.Trim()
+                    : $"Invoice {invoice.InvoiceNumber} from {business.Name}";
+
+            var plainMessage =
+                !string.IsNullOrWhiteSpace(request.Message)
+                    ? request.Message.Trim()
+                    : $"Please find invoice {invoice.InvoiceNumber} attached.";
+
+            var email =
+                new EmailMessage
+                {
+                    To = recipient,
+                    Subject = subject,
+                    ReplyTo = business.Email,
+                    HtmlBody = BuildHtmlBody(
+                        business.Name,
+                        invoice.InvoiceNumber,
+                        plainMessage),
+                    Attachments =
+                    [
+                        new EmailAttachment
+                        {
+                            FileName = pdfResult.FileName,
+                            ContentType = "application/pdf",
+                            Content = pdfResult.Content
+                        }
+                    ]
+                };
+
+            var result =
+                await _emailService.SendAsync(
+                    email,
+                    cancellationToken);
+
+            if (result.Success)
+            {
+                delivery.Status =
+                    DeliveryStatus.Sent;
+
+                delivery.ProviderMessageId =
+                    result.ProviderMessageId;
+
+                delivery.SentAt =
+                    DateTime.UtcNow;
+
+                delivery.ErrorMessage =
+                    null;
+            }
+            else
+            {
+                delivery.Status =
+                    DeliveryStatus.Failed;
+
+                delivery.ErrorMessage =
+                    LimitErrorMessage(
+                        result.ErrorMessage);
+            }
+
+            delivery.UpdatedAt =
+                DateTime.UtcNow;
+
+            await _dbContext.SaveChangesAsync(
+                cancellationToken);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            delivery.Status =
+                DeliveryStatus.Failed;
+
+            delivery.ErrorMessage =
+                LimitErrorMessage(ex.Message);
+
+            delivery.UpdatedAt =
+                DateTime.UtcNow;
+
+            await _dbContext.SaveChangesAsync(
+                CancellationToken.None);
+
+            throw;
+        }
     }
 
     private static string BuildHtmlBody(
         string businessName,
-        string customerName,
         string invoiceNumber,
-        string currencyCode,
-        decimal total,
-        DateTime dueDate,
-        string customMessage)
+        string message)
     {
+        var safeBusinessName =
+            WebUtility.HtmlEncode(businessName);
+
+        var safeInvoiceNumber =
+            WebUtility.HtmlEncode(invoiceNumber);
+
+        var safeMessage =
+            WebUtility.HtmlEncode(message)
+                .Replace("\r\n", "<br />")
+                .Replace("\n", "<br />");
+
         return $"""
-            <div style="font-family:Arial,sans-serif;
-                        max-width:600px;
-                        margin:auto;
-                        color:#222;">
-
-                <h2>{WebUtility.HtmlEncode(businessName)}</h2>
+            <div style="font-family:Arial,sans-serif;line-height:1.6;">
+                <p>{safeMessage}</p>
 
                 <p>
-                    Hi {WebUtility.HtmlEncode(customerName)},
-                </p>
-
-                <p>
-                    {WebUtility.HtmlEncode(customMessage)}
-                </p>
-
-                <p>
-                    <strong>Invoice:</strong>
-                    {WebUtility.HtmlEncode(invoiceNumber)}
-                    <br />
-
-                    <strong>Amount:</strong>
-                    {WebUtility.HtmlEncode(currencyCode)}
-                    {total:N2}
-                    <br />
-
-                    <strong>Due date:</strong>
-                    {dueDate:dd MMM yyyy}
-                </p>
-
-                <p>
-                    The invoice PDF is attached to this email.
+                    Invoice:
+                    <strong>{safeInvoiceNumber}</strong>
                 </p>
 
                 <p>
                     Regards,<br />
-                    {WebUtility.HtmlEncode(businessName)}
+                    {safeBusinessName}
                 </p>
-
-                <hr />
-
-                <small>
-                    Sent using QuoteSnap
-                </small>
-
             </div>
             """;
+    }
+
+    private static string? LimitErrorMessage(
+        string? errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(errorMessage))
+            return null;
+
+        return errorMessage.Length <= 2000
+            ? errorMessage
+            : errorMessage[..2000];
     }
 
     private Guid GetBusinessId()

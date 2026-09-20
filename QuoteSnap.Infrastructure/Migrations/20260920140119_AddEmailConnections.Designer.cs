@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using QuoteSnap.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using QuoteSnap.Infrastructure.Persistence;
 namespace QuoteSnap.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260920140119_AddEmailConnections")]
+    partial class AddEmailConnections
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -405,67 +408,6 @@ namespace QuoteSnap.Infrastructure.Migrations
                     b.ToTable("Customers", (string)null);
                 });
 
-            modelBuilder.Entity("QuoteSnap.Domain.Entities.DocumentDelivery", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("BusinessId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Channel")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("DocumentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("DocumentNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("DocumentType")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<string>("Provider")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("ProviderMessageId")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Recipient")
-                        .IsRequired()
-                        .HasMaxLength(320)
-                        .HasColumnType("nvarchar(320)");
-
-                    b.Property<DateTime?>("SentAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BusinessId");
-
-                    b.HasIndex("BusinessId", "DocumentType", "DocumentId");
-
-                    b.ToTable("DocumentDeliveries", (string)null);
-                });
-
             modelBuilder.Entity("QuoteSnap.Domain.Entities.EmailConnection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -652,91 +594,6 @@ namespace QuoteSnap.Infrastructure.Migrations
                     b.HasIndex("InvoiceId");
 
                     b.ToTable("InvoiceItems", (string)null);
-                });
-
-            modelBuilder.Entity("QuoteSnap.Domain.Entities.Notification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("BusinessId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<DateTime?>("FailedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("HtmlBody")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("ProcessingStartedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Provider")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("ProviderMessageId")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Recipient")
-                        .IsRequired()
-                        .HasMaxLength(320)
-                        .HasColumnType("nvarchar(320)");
-
-                    b.Property<Guid?>("ReferenceId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ReferenceType")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("RetryCount")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("ScheduledFor")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("SentAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Subject")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BusinessId");
-
-                    b.HasIndex("BusinessId", "Type");
-
-                    b.HasIndex("ReferenceType", "ReferenceId");
-
-                    b.HasIndex("Status", "ScheduledFor");
-
-                    b.ToTable("Notifications", (string)null);
                 });
 
             modelBuilder.Entity("QuoteSnap.Domain.Entities.Payment", b =>
@@ -970,69 +827,6 @@ namespace QuoteSnap.Infrastructure.Migrations
                     b.ToTable("Receipts", (string)null);
                 });
 
-            modelBuilder.Entity("QuoteSnap.Domain.Entities.Subscription", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("BusinessId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("CancelledAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("CurrentPeriodEndsAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("CurrentPeriodStartsAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("EndedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ExternalCustomerId")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("ExternalSubscriptionId")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("PaymentProvider")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("Plan")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("TrialEndsAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("TrialStartedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BusinessId")
-                        .IsUnique();
-
-                    b.HasIndex("Status", "CurrentPeriodEndsAt");
-
-                    b.HasIndex("Status", "TrialEndsAt");
-
-                    b.ToTable("Subscriptions", (string)null);
-                });
-
             modelBuilder.Entity("QuoteSnap.Infrastructure.Identity.ApplicationUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1211,17 +1005,6 @@ namespace QuoteSnap.Infrastructure.Migrations
                     b.Navigation("Business");
                 });
 
-            modelBuilder.Entity("QuoteSnap.Domain.Entities.DocumentDelivery", b =>
-                {
-                    b.HasOne("QuoteSnap.Domain.Entities.Business", "Business")
-                        .WithMany("DocumentDeliveries")
-                        .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Business");
-                });
-
             modelBuilder.Entity("QuoteSnap.Domain.Entities.EmailConnection", b =>
                 {
                     b.HasOne("QuoteSnap.Domain.Entities.Business", "Business")
@@ -1275,17 +1058,6 @@ namespace QuoteSnap.Infrastructure.Migrations
                     b.Navigation("CatalogueItem");
 
                     b.Navigation("Invoice");
-                });
-
-            modelBuilder.Entity("QuoteSnap.Domain.Entities.Notification", b =>
-                {
-                    b.HasOne("QuoteSnap.Domain.Entities.Business", "Business")
-                        .WithMany("Notifications")
-                        .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Business");
                 });
 
             modelBuilder.Entity("QuoteSnap.Domain.Entities.Payment", b =>
@@ -1361,17 +1133,6 @@ namespace QuoteSnap.Infrastructure.Migrations
                     b.Navigation("Payment");
                 });
 
-            modelBuilder.Entity("QuoteSnap.Domain.Entities.Subscription", b =>
-                {
-                    b.HasOne("QuoteSnap.Domain.Entities.Business", "Business")
-                        .WithOne("Subscription")
-                        .HasForeignKey("QuoteSnap.Domain.Entities.Subscription", "BusinessId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Business");
-                });
-
             modelBuilder.Entity("QuoteSnap.Domain.Entities.Business", b =>
                 {
                     b.Navigation("CatalogueItems");
@@ -1380,19 +1141,13 @@ namespace QuoteSnap.Infrastructure.Migrations
 
                     b.Navigation("Customers");
 
-                    b.Navigation("DocumentDeliveries");
-
                     b.Navigation("EmailConnections");
 
                     b.Navigation("Invoices");
 
-                    b.Navigation("Notifications");
-
                     b.Navigation("Quotes");
 
                     b.Navigation("Receipts");
-
-                    b.Navigation("Subscription");
                 });
 
             modelBuilder.Entity("QuoteSnap.Domain.Entities.Category", b =>

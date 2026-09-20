@@ -13,14 +13,17 @@ public class InvoicesController : ControllerBase
     private readonly InvoiceService _invoiceService;
     private readonly PdfService _pdfService;
     private readonly InvoiceEmailService _invoiceEmailService;
+    private readonly DocumentDeliveryService _documentDeliveryService;
     public InvoicesController(
         InvoiceService invoiceService,
         PdfService pdfService,
-        InvoiceEmailService invoiceEmailService)
+        InvoiceEmailService invoiceEmailService,
+        DocumentDeliveryService documentDeliveryService)
     {
         _invoiceService = invoiceService;
         _pdfService = pdfService;
         _invoiceEmailService = invoiceEmailService;
+        _documentDeliveryService = documentDeliveryService;
     }
 
     // GET: /api/invoices
@@ -212,6 +215,31 @@ public class InvoicesController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(new
+            {
+                message = ex.Message
+            });
+        }
+    }
+
+    [Authorize]
+    [HttpGet("{id:guid}/deliveries")]
+    public async Task<IActionResult> GetDeliveries(
+    Guid id,
+    CancellationToken cancellationToken)
+    {
+        try
+        {
+            var deliveries =
+                await _documentDeliveryService
+                    .GetInvoiceDeliveriesAsync(
+                        id,
+                        cancellationToken);
+
+            return Ok(deliveries);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new
             {
                 message = ex.Message
             });

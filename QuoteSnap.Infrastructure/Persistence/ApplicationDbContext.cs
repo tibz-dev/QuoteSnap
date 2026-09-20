@@ -35,6 +35,15 @@ public class ApplicationDbContext
 
     public DbSet<Receipt> Receipts => Set<Receipt>();
 
+    public DbSet<DocumentDelivery> DocumentDeliveries =>Set<DocumentDelivery>();
+
+    public DbSet<Subscription> Subscriptions =>Set<Subscription>();
+
+    public DbSet<EmailConnection> EmailConnections => Set<EmailConnection>();
+
+    public DbSet<Notification> Notifications =>
+    Set<Notification>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

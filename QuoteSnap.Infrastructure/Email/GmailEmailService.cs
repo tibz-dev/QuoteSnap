@@ -1,22 +1,37 @@
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Auth.OAuth2.Flows;
+using Google.Apis.Auth.OAuth2.Responses;
 using Google.Apis.Gmail.v1;
 using Google.Apis.Gmail.v1.Data;
 using Google.Apis.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MimeKit;
+using QuoteSnap.Application.Common.Interfaces;
 using QuoteSnap.Application.Email;
+using QuoteSnap.Application.Security;
+using QuoteSnap.Domain.Enums;
+using QuoteSnap.Infrastructure.Persistence;
 
 namespace QuoteSnap.Infrastructure.Email;
 
 public class GmailEmailService : IEmailService
 {
     private readonly GmailSettings _settings;
+    private readonly ApplicationDbContext _dbContext;
+    private readonly ICurrentUserService _currentUser;
+    private readonly ITokenProtectionService _tokenProtection;
 
     public GmailEmailService(
-        IOptions<GmailSettings> options)
+        IOptions<GmailSettings> options,
+        ApplicationDbContext dbContext,
+        ICurrentUserService currentUser,
+        ITokenProtectionService tokenProtection)
     {
         _settings = options.Value;
+        _dbContext = dbContext;
+        _currentUser = currentUser;
+        _tokenProtection = tokenProtection;
     }
 
     public async Task<EmailSendResult> SendAsync(
@@ -25,49 +40,118 @@ public class GmailEmailService : IEmailService
     {
         try
         {
-            ValidateSettings();
+            ValidatePlatformSettings();
 
-            var credential = new UserCredential(
+            var businessId = GetBusinessId();
+
+            var business =
+                await _dbContext.Businesses
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        x => x.Id == businessId,
+                        cancellationToken);
+
+            if (business is null)
+            {
+                return new EmailSendResult
+                {
+                    Success = false,
+                    ErrorMessage =
+                        "Business could not be found."
+                };
+            }
+
+            var connection =
+                await _dbContext.EmailConnections
+                    .FirstOrDefaultAsync(
+                        x =>
+                            x.BusinessId == businessId &&
+                            x.Provider == EmailProvider.Google &&
+                            x.IsActive,
+                        cancellationToken);
+
+            if (connection is null)
+            {
+                return new EmailSendResult
+                {
+                    Success = false,
+                    ErrorMessage =
+                        "No active Google email account is connected to this business."
+                };
+            }
+
+            var refreshToken =
+                _tokenProtection.Unprotect(
+                    connection.EncryptedRefreshToken);
+
+            var flow =
                 new GoogleAuthorizationCodeFlow(
                     new GoogleAuthorizationCodeFlow.Initializer
                     {
-                        ClientSecrets = new ClientSecrets
-                        {
-                            ClientId = _settings.ClientId,
-                            ClientSecret = _settings.ClientSecret
-                        }
-                    }),
-                "quotesnap-sender",
-                new Google.Apis.Auth.OAuth2.Responses.TokenResponse
+                        ClientSecrets =
+                            new ClientSecrets
+                            {
+                                ClientId =
+                                    _settings.ClientId,
+
+                                ClientSecret =
+                                    _settings.ClientSecret
+                            },
+
+                        Scopes =
+                        [
+                            GmailService.Scope.GmailSend
+                        ]
+                    });
+
+            var tokenResponse =
+                new TokenResponse
                 {
-                    RefreshToken = _settings.RefreshToken
-                });
+                    RefreshToken = refreshToken
+                };
 
-            using var gmailService = new GmailService(
-                new BaseClientService.Initializer
-                {
-                    HttpClientInitializer = credential,
-                    ApplicationName = "QuoteSnap"
-                });
+            var credential =
+                new UserCredential(
+                    flow,
+                    businessId.ToString(),
+                    tokenResponse);
 
-            var mimeMessage = BuildMimeMessage(message);
+            using var gmailService =
+                new GmailService(
+                    new BaseClientService.Initializer
+                    {
+                        HttpClientInitializer =
+                            credential,
 
-            using var stream = new MemoryStream();
+                        ApplicationName =
+                            "QuoteSnap"
+                    });
+
+            var mimeMessage =
+                BuildMimeMessage(
+                    message,
+                    connection.EmailAddress,
+                    business.Name);
+
+            using var stream =
+                new MemoryStream();
 
             await mimeMessage.WriteToAsync(
                 stream,
                 cancellationToken);
 
             var rawMessage =
-                Convert.ToBase64String(stream.ToArray())
+                Convert.ToBase64String(
+                        stream.ToArray())
                     .Replace("+", "-")
                     .Replace("/", "_")
                     .Replace("=", "");
 
-            var gmailMessage = new Message
-            {
-                Raw = rawMessage
-            };
+            var gmailMessage =
+                new Message
+                {
+                    Raw = rawMessage
+                };
 
             var request =
                 gmailService.Users.Messages.Send(
@@ -77,6 +161,15 @@ public class GmailEmailService : IEmailService
             var response =
                 await request.ExecuteAsync(
                     cancellationToken);
+
+            connection.LastUsedAt =
+                DateTime.UtcNow;
+
+            connection.UpdatedAt =
+                DateTime.UtcNow;
+
+            await _dbContext.SaveChangesAsync(
+                cancellationToken);
 
             return new EmailSendResult
             {
@@ -94,18 +187,22 @@ public class GmailEmailService : IEmailService
         }
     }
 
-    private MimeMessage BuildMimeMessage(
-        EmailMessage message)
+    private static MimeMessage BuildMimeMessage(
+        EmailMessage message,
+        string senderEmail,
+        string senderName)
     {
-        var mimeMessage = new MimeMessage();
+        var mimeMessage =
+            new MimeMessage();
 
         mimeMessage.From.Add(
             new MailboxAddress(
-                _settings.SenderName,
-                _settings.SenderEmail));
+                senderName,
+                senderEmail));
 
         mimeMessage.To.Add(
-            MailboxAddress.Parse(message.To));
+            MailboxAddress.Parse(
+                message.To));
 
         mimeMessage.Subject =
             message.Subject;
@@ -118,12 +215,14 @@ public class GmailEmailService : IEmailService
                     message.ReplyTo));
         }
 
-        var bodyBuilder = new BodyBuilder
-        {
-            HtmlBody = message.HtmlBody
-        };
+        var bodyBuilder =
+            new BodyBuilder
+            {
+                HtmlBody = message.HtmlBody
+            };
 
-        foreach (var attachment in message.Attachments)
+        foreach (var attachment
+                 in message.Attachments)
         {
             bodyBuilder.Attachments.Add(
                 attachment.FileName,
@@ -138,34 +237,32 @@ public class GmailEmailService : IEmailService
         return mimeMessage;
     }
 
-    private void ValidateSettings()
+    private Guid GetBusinessId()
+    {
+        if (!_currentUser.IsAuthenticated ||
+            _currentUser.BusinessId == Guid.Empty)
+        {
+            throw new UnauthorizedAccessException(
+                "Business information is missing.");
+        }
+
+        return _currentUser.BusinessId;
+    }
+
+    private void ValidatePlatformSettings()
     {
         if (string.IsNullOrWhiteSpace(
                 _settings.ClientId))
         {
             throw new InvalidOperationException(
-                "ClientId is missing.");
+                "Google ClientId is missing.");
         }
 
         if (string.IsNullOrWhiteSpace(
                 _settings.ClientSecret))
         {
             throw new InvalidOperationException(
-                "ClientSecret is missing.");
-        }
-
-        if (string.IsNullOrWhiteSpace(
-                _settings.RefreshToken))
-        {
-            throw new InvalidOperationException(
-                "RefreshToken is missing.");
-        }
-
-        if (string.IsNullOrWhiteSpace(
-                _settings.SenderEmail))
-        {
-            throw new InvalidOperationException(
-                "SenderEmail is missing.");
+                "Google ClientSecret is missing.");
         }
     }
 }
