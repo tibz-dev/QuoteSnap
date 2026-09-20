@@ -89,4 +89,7 @@ public class Business : BaseEntity
 
     public ICollection<Notification> Notifications { get; set; }
     = new List<Notification>();
+
+    public ICollection<SubscriptionPayment> SubscriptionPayments { get; set; }
+    = new List<SubscriptionPayment>();
 }
