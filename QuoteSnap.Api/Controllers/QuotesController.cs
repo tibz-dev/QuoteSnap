@@ -11,11 +11,14 @@ namespace QuoteSnap.Api.Controllers;
 public class QuotesController : ControllerBase
 {
     private readonly QuoteService _quoteService;
+    private readonly PdfService _pdfService;
 
     public QuotesController(
-        QuoteService quoteService)
+        QuoteService quoteService,
+        PdfService pdfService)
     {
         _quoteService = quoteService;
+        _pdfService = pdfService;
     }
 
     // GET: /api/quotes
@@ -115,5 +118,27 @@ public class QuotesController : ControllerBase
                 message = ex.Message
             });
         }
+    }
+
+    // GET: /api/quotes/{id}/pdf
+    [HttpGet("{id:guid}/pdf")]
+    public async Task<IActionResult> DownloadPdf(
+        Guid id)
+    {
+        var result =
+            await _pdfService.GenerateQuoteAsync(id);
+
+        if (result is null)
+        {
+            return NotFound(new
+            {
+                message = "Quote not found."
+            });
+        }
+
+        return File(
+            result.Value.Content,
+            "application/pdf",
+            result.Value.FileName);
     }
 }

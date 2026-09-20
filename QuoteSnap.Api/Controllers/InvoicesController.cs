@@ -11,11 +11,16 @@ namespace QuoteSnap.Api.Controllers;
 public class InvoicesController : ControllerBase
 {
     private readonly InvoiceService _invoiceService;
-
+    private readonly PdfService _pdfService;
+    private readonly InvoiceEmailService _invoiceEmailService;
     public InvoicesController(
-        InvoiceService invoiceService)
+        InvoiceService invoiceService,
+        PdfService pdfService,
+        InvoiceEmailService invoiceEmailService)
     {
         _invoiceService = invoiceService;
+        _pdfService = pdfService;
+        _invoiceEmailService = invoiceEmailService;
     }
 
     // GET: /api/invoices
@@ -131,6 +136,82 @@ public class InvoicesController : ControllerBase
         catch (ArgumentException ex)
         {
             return NotFound(new
+            {
+                message = ex.Message
+            });
+        }
+    }
+
+    // GET: /api/invoices/{id}/pdf
+    [HttpGet("{id:guid}/pdf")]
+    public async Task<IActionResult> DownloadPdf(
+        Guid id)
+    {
+        var result =
+            await _pdfService.GenerateInvoiceAsync(id);
+
+        if (result is null)
+        {
+            return NotFound(new
+            {
+                message = "Invoice not found."
+            });
+        }
+
+        return File(
+            result.Value.Content,
+            "application/pdf",
+            result.Value.FileName);
+    }
+
+    // POST: /api/invoices/{id}/send-email
+    [HttpPost("{id:guid}/send-email")]
+    public async Task<IActionResult> SendEmail(
+        Guid id,
+        SendInvoiceEmailRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result =
+                await _invoiceEmailService.SendAsync(
+                    id,
+                    request,
+                    cancellationToken);
+
+            if (!result.Success)
+            {
+                return StatusCode(
+                    StatusCodes.Status502BadGateway,
+                    new
+                    {
+                        message =
+                            "The invoice email could not be sent.",
+
+                        error =
+                            result.ErrorMessage
+                    });
+            }
+
+            return Ok(new
+            {
+                message =
+                    "Invoice email sent successfully.",
+
+                providerMessageId =
+                    result.ProviderMessageId
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new
+            {
+                message = ex.Message
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new
             {
                 message = ex.Message
             });

@@ -3,11 +3,13 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using QuoteSnap.Infrastructure.Authentication;
-using QuoteSnap.Infrastructure.Identity;
-using QuoteSnap.Infrastructure.Persistence;
 using QuoteSnap.Api.Services;
 using QuoteSnap.Application.Common.Interfaces;
+using QuoteSnap.Application.Email;
+using QuoteSnap.Infrastructure.Authentication;
+using QuoteSnap.Infrastructure.Email;
+using QuoteSnap.Infrastructure.Identity;
+using QuoteSnap.Infrastructure.Persistence;
 using QuoteSnap.Infrastructure.Services;
 using System.Text;
 
@@ -94,12 +96,24 @@ builder.Services.AddScoped<CategoryService>();
 builder.Services.AddScoped<CatalogueItemService>();
 builder.Services.AddScoped<QuoteService>();
 builder.Services.AddScoped<InvoiceService>();
+builder.Services.AddScoped<ReceiptService>();
+builder.Services.AddScoped<PdfService>();
 
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddScoped<
     ICurrentUserService,
     CurrentUserService>();
+
+builder.Services.Configure<GmailSettings>(
+    builder.Configuration.GetSection(
+        GmailSettings.SectionName));
+
+builder.Services.AddScoped<IEmailService, GmailEmailService>();
+
+builder.Services.AddScoped<InvoiceEmailService>();
+
+builder.Services.AddScoped<GoogleOAuthService>();
 
 // Swagger
 builder.Services.AddSwaggerGen(options =>
@@ -140,6 +154,9 @@ builder.Services.AddSwaggerGen(options =>
             }
         });
 });
+
+QuestPDF.Settings.License =
+    QuestPDF.Infrastructure.LicenseType.Community;
 
 var app = builder.Build();
 
