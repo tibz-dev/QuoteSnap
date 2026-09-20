@@ -41,6 +41,8 @@ public class ApplicationDbContext
 
     public DbSet<EmailConnection> EmailConnections => Set<EmailConnection>();
 
+    public DbSet<SubscriptionPayment> SubscriptionPayments => Set<SubscriptionPayment>();
+
     public DbSet<Notification> Notifications =>
     Set<Notification>();
 

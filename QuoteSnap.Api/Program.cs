@@ -12,6 +12,8 @@ using QuoteSnap.Infrastructure.Authentication;
 using QuoteSnap.Infrastructure.BackgroundJobs;
 using QuoteSnap.Infrastructure.Email;
 using QuoteSnap.Infrastructure.Identity;
+using QuoteSnap.Infrastructure.Payments;
+using QuoteSnap.Infrastructure.Payments.Paystack;
 using QuoteSnap.Infrastructure.Persistence;
 using QuoteSnap.Infrastructure.Security;
 using QuoteSnap.Infrastructure.Services;
@@ -99,6 +101,21 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+
+builder.Services.Configure<PaystackSettings>(
+    builder.Configuration.GetSection(
+        PaystackSettings.SectionName));
+
+builder.Services.AddHttpClient<PaystackService>(client =>
+{
+    client.BaseAddress =
+        new Uri("https://api.paystack.co/");
+});
+
+builder.Services.AddScoped<SubscriptionPaymentService>();
+
+builder.Services.AddScoped<
+    PaystackWebhookValidator>();
 
 // QuoteSnap services
 builder.Services.AddScoped<JwtTokenService>();
