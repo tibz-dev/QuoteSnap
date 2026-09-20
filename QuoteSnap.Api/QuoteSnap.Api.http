@@ -1,0 +1,6 @@
+@QuoteSnap.Api_HostAddress = http://localhost:5128
+
+GET {{QuoteSnap.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

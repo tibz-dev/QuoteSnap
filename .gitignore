@@ -1,0 +1,52 @@
+# Visual Studio
+.vs/
+.vscode/
+
+# Build output
+bin/
+obj/
+[Bb]uild/
+[Dd]ebug/
+[Rr]elease/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# Logs
+*.log
+
+# Test results
+TestResults/
+
+# Coverage
+coverage/
+coverage.xml
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files / secrets
+.env
+.env.*
+secrets.json
+
+# Development configuration containing local secrets
+**/appsettings.Development.json
+**/appsettings.Local.json
+
+# SQL Server local database files
+*.mdf
+*.ldf
