@@ -18,4 +18,6 @@ public class Payment : TenantEntity
     public string? Notes { get; set; }
 
     public Invoice Invoice { get; set; } = null!;
+
+    public Receipt? Receipt { get; set; }
 }

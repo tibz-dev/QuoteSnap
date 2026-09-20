@@ -31,6 +31,10 @@ public class ApplicationDbContext
 
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
 
+    public DbSet<Payment> Payments => Set<Payment>();
+
+    public DbSet<Receipt> Receipts => Set<Receipt>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

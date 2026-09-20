@@ -94,5 +94,12 @@ public class BusinessConfiguration : IEntityTypeConfiguration<Business>
             .WithOne(x => x.Business)
             .HasForeignKey(x => x.BusinessId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Property(x => x.ReceiptPrefix)
+            .IsRequired()
+            .HasMaxLength(10);
+
+        builder.Property(x => x.NextReceiptNumber)
+            .IsRequired();
     }
 }

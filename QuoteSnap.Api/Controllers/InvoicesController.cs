@@ -90,9 +90,7 @@ public class InvoicesController : ControllerBase
         try
         {
             var invoice =
-                await _invoiceService.RecordPaymentAsync(
-                    id,
-                    request);
+                await _invoiceService.RecordPaymentAsync(id,request);
 
             if (invoice is null)
             {
@@ -114,6 +112,25 @@ public class InvoicesController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return Conflict(new
+            {
+                message = ex.Message
+            });
+        }
+    }
+
+    // GET: /api/invoices/{id}/payments
+    [HttpGet("{id:guid}/payments")]
+    public async Task<ActionResult<List<PaymentDto>>> GetPayments(Guid id)
+    {
+        try
+        {
+            var payments = await _invoiceService.GetPaymentsAsync(id);
+
+            return Ok(payments);
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(new
             {
                 message = ex.Message
             });

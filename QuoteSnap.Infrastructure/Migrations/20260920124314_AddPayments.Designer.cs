@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using QuoteSnap.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using QuoteSnap.Infrastructure.Persistence;
 namespace QuoteSnap.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260920124314_AddPayments")]
+    partial class AddPayments
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -229,9 +232,6 @@ namespace QuoteSnap.Infrastructure.Migrations
                     b.Property<int>("NextQuoteNumber")
                         .HasColumnType("int");
 
-                    b.Property<int>("NextReceiptNumber")
-                        .HasColumnType("int");
-
                     b.Property<string>("Phone")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
@@ -240,11 +240,6 @@ namespace QuoteSnap.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("ReceiptPrefix")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
 
                     b.Property<int>("SubscriptionPlan")
                         .HasColumnType("int");
@@ -725,59 +720,6 @@ namespace QuoteSnap.Infrastructure.Migrations
                     b.ToTable("QuoteItems", (string)null);
                 });
 
-            modelBuilder.Entity("QuoteSnap.Domain.Entities.Receipt", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid>("BusinessId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CurrencyCode")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("nvarchar(3)");
-
-                    b.Property<Guid>("InvoiceId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("PaymentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("ReceiptDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ReceiptNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BusinessId");
-
-                    b.HasIndex("InvoiceId");
-
-                    b.HasIndex("PaymentId")
-                        .IsUnique();
-
-                    b.HasIndex("BusinessId", "ReceiptNumber")
-                        .IsUnique();
-
-                    b.ToTable("Receipts", (string)null);
-                });
-
             modelBuilder.Entity("QuoteSnap.Infrastructure.Identity.ApplicationUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1048,31 +990,6 @@ namespace QuoteSnap.Infrastructure.Migrations
                     b.Navigation("Quote");
                 });
 
-            modelBuilder.Entity("QuoteSnap.Domain.Entities.Receipt", b =>
-                {
-                    b.HasOne("QuoteSnap.Domain.Entities.Business", null)
-                        .WithMany("Receipts")
-                        .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("QuoteSnap.Domain.Entities.Invoice", "Invoice")
-                        .WithMany("Receipts")
-                        .HasForeignKey("InvoiceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("QuoteSnap.Domain.Entities.Payment", "Payment")
-                        .WithOne("Receipt")
-                        .HasForeignKey("QuoteSnap.Domain.Entities.Receipt", "PaymentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Invoice");
-
-                    b.Navigation("Payment");
-                });
-
             modelBuilder.Entity("QuoteSnap.Domain.Entities.Business", b =>
                 {
                     b.Navigation("CatalogueItems");
@@ -1084,8 +1001,6 @@ namespace QuoteSnap.Infrastructure.Migrations
                     b.Navigation("Invoices");
 
                     b.Navigation("Quotes");
-
-                    b.Navigation("Receipts");
                 });
 
             modelBuilder.Entity("QuoteSnap.Domain.Entities.Category", b =>
@@ -1105,13 +1020,6 @@ namespace QuoteSnap.Infrastructure.Migrations
                     b.Navigation("Items");
 
                     b.Navigation("Payments");
-
-                    b.Navigation("Receipts");
-                });
-
-            modelBuilder.Entity("QuoteSnap.Domain.Entities.Payment", b =>
-                {
-                    b.Navigation("Receipt");
                 });
 
             modelBuilder.Entity("QuoteSnap.Domain.Entities.Quote", b =>

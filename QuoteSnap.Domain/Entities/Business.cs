@@ -50,6 +50,10 @@ public class Business : BaseEntity
 
     public int NextInvoiceNumber { get; set; } = 1;
 
+
+    public string ReceiptPrefix { get; set; } = "RCT";
+    public int NextReceiptNumber { get; set; } = 1;
+
     // Subscription
     public SubscriptionPlan SubscriptionPlan { get; set; }
         = SubscriptionPlan.Free;
@@ -71,4 +75,7 @@ public class Business : BaseEntity
 
     public ICollection<Invoice> Invoices { get; set; }
     = new List<Invoice>();
+
+    public ICollection<Receipt> Receipts { get; set; }
+    = new List<Receipt>();
 }

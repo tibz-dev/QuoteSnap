@@ -214,6 +214,12 @@ public class InvoiceService
                 "Payment amount must be greater than zero.");
         }
 
+        if (!Enum.IsDefined(typeof(PaymentMethod), request.Method))
+        {
+            throw new ArgumentException(
+                "Invalid payment method.");
+        }
+
         var invoice = await _dbContext.Invoices
             .FirstOrDefaultAsync(x =>
                 x.Id == id &&
@@ -242,27 +248,105 @@ public class InvoiceService
         if (request.Amount > remainingBalance)
         {
             throw new ArgumentException(
-                $"Payment cannot exceed the remaining balance of {remainingBalance:0.00} {invoice.CurrencyCode}.");
+                $"Payment cannot exceed the remaining balance of " +
+                $"{remainingBalance:0.00} {invoice.CurrencyCode}.");
         }
 
-        invoice.AmountPaid += request.Amount;
+        var paymentDate =
+            request.PaymentDate ?? DateTime.UtcNow;
 
-        if (invoice.AmountPaid >= invoice.Total)
+        if (paymentDate > DateTime.UtcNow.AddMinutes(5))
         {
-            invoice.Status = InvoiceStatus.Paid;
+            throw new ArgumentException(
+                "Payment date cannot be in the future.");
         }
-        else
+
+        await using var transaction =
+            await _dbContext.Database.BeginTransactionAsync();
+
+        try
         {
-            invoice.Status = InvoiceStatus.PartiallyPaid;
+            var payment = new Payment
+            {
+                BusinessId = businessId,
+                InvoiceId = invoice.Id,
+
+                Amount = request.Amount,
+                Method = request.Method,
+                PaymentDate = paymentDate,
+
+                Reference = string.IsNullOrWhiteSpace(request.Reference)
+                    ? null
+                    : request.Reference.Trim(),
+
+                Notes = string.IsNullOrWhiteSpace(request.Notes)
+                    ? null
+                    : request.Notes.Trim()
+            };
+
+            _dbContext.Payments.Add(payment);
+
+            invoice.AmountPaid += request.Amount;
+
+            if (invoice.AmountPaid >= invoice.Total)
+            {
+                invoice.Status = InvoiceStatus.Paid;
+            }
+            else
+            {
+                invoice.Status = InvoiceStatus.PartiallyPaid;
+            }
+
+            invoice.UpdatedAt = DateTime.UtcNow;
+
+            await _dbContext.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+
+            return await GetByIdAsync(id);
         }
-
-        invoice.UpdatedAt = DateTime.UtcNow;
-
-        await _dbContext.SaveChangesAsync();
-
-        return await GetByIdAsync(id);
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
+    public async Task<List<PaymentDto>> GetPaymentsAsync(
+    Guid invoiceId)
+    {
+        var businessId = GetBusinessId();
+
+        var invoiceExists = await _dbContext.Invoices
+            .AnyAsync(x =>
+                x.Id == invoiceId &&
+                x.BusinessId == businessId);
+
+        if (!invoiceExists)
+        {
+            throw new ArgumentException(
+                "Invoice not found.");
+        }
+
+        return await _dbContext.Payments
+            .AsNoTracking()
+            .Where(x =>
+                x.InvoiceId == invoiceId &&
+                x.BusinessId == businessId)
+            .OrderByDescending(x => x.PaymentDate)
+            .Select(x => new PaymentDto
+            {
+                Id = x.Id,
+                InvoiceId = x.InvoiceId,
+                Amount = x.Amount,
+                Method = x.Method,
+                PaymentDate = x.PaymentDate,
+                Reference = x.Reference,
+                Notes = x.Notes,
+                CreatedAt = x.CreatedAt
+            })
+            .ToListAsync();
+    }
     private static InvoiceDto MapProjection(Invoice invoice)
     {
         if (invoice is null)
