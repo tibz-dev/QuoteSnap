@@ -24,25 +24,37 @@ public class InvoiceService
     {
         var businessId = GetBusinessId();
 
-        return await _dbContext.Invoices
+        var invoices = await _dbContext.Invoices
             .AsNoTracking()
+            .Include(x => x.Customer)
+            .Include(x => x.Items)
             .Where(x => x.BusinessId == businessId)
             .OrderByDescending(x => x.CreatedAt)
-            .Select(x => MapProjection(x))
             .ToListAsync();
+
+        return invoices
+            .Select(MapProjection)
+            .ToList();
     }
 
     public async Task<InvoiceDto?> GetByIdAsync(Guid id)
     {
         var businessId = GetBusinessId();
 
-        return await _dbContext.Invoices
+        var invoice = await _dbContext.Invoices
             .AsNoTracking()
-            .Where(x =>
+            .Include(x => x.Customer)
+            .Include(x => x.Items)
+            .FirstOrDefaultAsync(x =>
                 x.Id == id &&
-                x.BusinessId == businessId)
-            .Select(x => MapProjection(x))
-            .FirstOrDefaultAsync();
+                x.BusinessId == businessId);
+
+        if (invoice is null)
+        {
+            return null;
+        }
+
+        return MapProjection(invoice);
     }
 
     public async Task<InvoiceDto> ConvertQuoteAsync(
@@ -190,21 +202,86 @@ public class InvoiceService
         }
     }
 
-    private static InvoiceDto MapProjection(
-        Invoice invoice)
+    public async Task<InvoiceDto?> RecordPaymentAsync(
+    Guid id,
+    RecordPaymentRequest request)
     {
+        var businessId = GetBusinessId();
+
+        if (request.Amount <= 0)
+        {
+            throw new ArgumentException(
+                "Payment amount must be greater than zero.");
+        }
+
+        var invoice = await _dbContext.Invoices
+            .FirstOrDefaultAsync(x =>
+                x.Id == id &&
+                x.BusinessId == businessId);
+
+        if (invoice is null)
+        {
+            return null;
+        }
+
+        if (invoice.Status == InvoiceStatus.Cancelled)
+        {
+            throw new InvalidOperationException(
+                "Payments cannot be recorded against a cancelled invoice.");
+        }
+
+        if (invoice.Status == InvoiceStatus.Paid)
+        {
+            throw new InvalidOperationException(
+                "This invoice has already been paid in full.");
+        }
+
+        var remainingBalance =
+            invoice.Total - invoice.AmountPaid;
+
+        if (request.Amount > remainingBalance)
+        {
+            throw new ArgumentException(
+                $"Payment cannot exceed the remaining balance of {remainingBalance:0.00} {invoice.CurrencyCode}.");
+        }
+
+        invoice.AmountPaid += request.Amount;
+
+        if (invoice.AmountPaid >= invoice.Total)
+        {
+            invoice.Status = InvoiceStatus.Paid;
+        }
+        else
+        {
+            invoice.Status = InvoiceStatus.PartiallyPaid;
+        }
+
+        invoice.UpdatedAt = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync();
+
+        return await GetByIdAsync(id);
+    }
+
+    private static InvoiceDto MapProjection(Invoice invoice)
+    {
+        if (invoice is null)
+        {
+            throw new ArgumentNullException(nameof(invoice));
+        }
+
         return new InvoiceDto
         {
             Id = invoice.Id,
 
             InvoiceNumber =
-                invoice.InvoiceNumber,
+                invoice.InvoiceNumber ?? string.Empty,
 
             CustomerId =
                 invoice.CustomerId,
 
             CustomerName =
-                invoice.Customer.Name,
+                invoice.Customer?.Name ?? "Unknown Customer",
 
             QuoteId =
                 invoice.QuoteId,
@@ -219,7 +296,7 @@ public class InvoiceService
                 invoice.DueDate,
 
             CurrencyCode =
-                invoice.CurrencyCode,
+                invoice.CurrencyCode ?? string.Empty,
 
             TaxName =
                 invoice.TaxName,
@@ -254,7 +331,7 @@ public class InvoiceService
             CreatedAt =
                 invoice.CreatedAt,
 
-            Items = invoice.Items
+            Items = invoice.Items?
                 .Select(item => new InvoiceItemDto
                 {
                     Id = item.Id,
@@ -263,7 +340,7 @@ public class InvoiceService
                         item.CatalogueItemId,
 
                     Description =
-                        item.Description,
+                        item.Description ?? string.Empty,
 
                     Quantity =
                         item.Quantity,
@@ -281,6 +358,7 @@ public class InvoiceService
                         item.LineTotal
                 })
                 .ToList()
+                ?? new List<InvoiceItemDto>()
         };
     }
 

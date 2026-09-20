@@ -93,7 +93,7 @@ builder.Services.AddScoped<CustomerService>();
 builder.Services.AddScoped<CategoryService>();
 builder.Services.AddScoped<CatalogueItemService>();
 builder.Services.AddScoped<QuoteService>();
-builder.Services.AddScoped<QuoteService>();
+builder.Services.AddScoped<InvoiceService>();
 
 builder.Services.AddHttpContextAccessor();
 
