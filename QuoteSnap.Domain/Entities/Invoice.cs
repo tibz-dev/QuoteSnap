@@ -50,6 +50,9 @@ public class Invoice : TenantEntity
     public ICollection<InvoiceItem> Items { get; set; }
         = new List<InvoiceItem>();
 
+    public ICollection<Payment> Payments { get; set; }
+    = new List<Payment>();
+
     public decimal BalanceDue => Total - AmountPaid;
 
     public void CalculateTotals()
