@@ -53,6 +53,30 @@ public class SubscriptionPaymentsController : ControllerBase
         }
     }
 
+    [Authorize]
+    [HttpGet("{paymentId:guid}")]
+    public async Task<IActionResult> GetPayment(
+        Guid paymentId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var payment =
+                await _paymentService.GetAsync(
+                    paymentId,
+                    cancellationToken);
+
+            return Ok(payment);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new
+            {
+                message = ex.Message
+            });
+        }
+    }
+
     [AllowAnonymous]
     [HttpPost("webhook")]
     public async Task<IActionResult> Webhook(
@@ -66,8 +90,7 @@ public class SubscriptionPaymentsController : ControllerBase
                 cancellationToken);
 
         var signature =
-            Request.Headers[
-                "x-paystack-signature"]
+            Request.Headers["x-paystack-signature"]
                 .FirstOrDefault();
 
         if (string.IsNullOrWhiteSpace(signature) ||
@@ -91,62 +114,203 @@ public class SubscriptionPaymentsController : ControllerBase
             return Ok();
         }
 
-        var eventName =
-            eventElement.GetString();
-
-        if (!string.Equals(
-                eventName,
-                "charge.success",
-                StringComparison.OrdinalIgnoreCase))
+        if (!root.TryGetProperty(
+                "data",
+                out var dataElement))
         {
             return Ok();
         }
 
-        if (!root.TryGetProperty(
-                "data",
-                out var dataElement) ||
-            !dataElement.TryGetProperty(
+        var eventName =
+            eventElement.GetString();
+
+        if (string.Equals(
+                eventName,
+                "charge.success",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            await HandleChargeSuccessAsync(
+                dataElement,
+                cancellationToken);
+
+            return Ok();
+        }
+
+        if (string.Equals(
+                eventName,
+                "subscription.create",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            await HandleSubscriptionCreatedAsync(
+                dataElement,
+                cancellationToken);
+
+            return Ok();
+        }
+        if (string.Equals(
+        eventName,
+        "invoice.update",
+        StringComparison.OrdinalIgnoreCase))
+        {
+            if (!dataElement.TryGetProperty(
+                    "paid",
+                    out var paidElement) ||
+                paidElement.ValueKind != JsonValueKind.True)
+            {
+                return Ok();
+            }
+
+            var subscriptionCode =
+                GetSubscriptionCode(dataElement);
+
+            if (!string.IsNullOrWhiteSpace(
+                    subscriptionCode))
+            {
+                await _paymentService
+                    .ProcessSubscriptionRenewedAsync(
+                        subscriptionCode,
+                        cancellationToken);
+            }
+
+            return Ok();
+        }
+
+        if (string.Equals(
+                eventName,
+                "subscription.disable",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            var subscriptionCode =
+                GetSubscriptionCode(dataElement);
+
+            if (!string.IsNullOrWhiteSpace(
+                    subscriptionCode))
+            {
+                await _paymentService
+                    .ProcessSubscriptionDisabledAsync(
+                        subscriptionCode,
+                        cancellationToken);
+            }
+
+            return Ok();
+        }
+
+        return Ok();
+    }
+
+    private async Task HandleChargeSuccessAsync(
+        JsonElement dataElement,
+        CancellationToken cancellationToken)
+    {
+        if (!dataElement.TryGetProperty(
                 "reference",
                 out var referenceElement))
         {
-            return Ok();
+            return;
         }
 
         var reference =
             referenceElement.GetString();
 
         if (string.IsNullOrWhiteSpace(reference))
-            return Ok();
+            return;
 
         await _paymentService
             .ProcessSuccessfulPaymentAsync(
                 reference,
                 cancellationToken);
-
-        return Ok();
     }
 
-    [Authorize]
-    [HttpGet("{paymentId:guid}")]
-    public async Task<IActionResult> GetPayment(
-    Guid paymentId,
-    CancellationToken cancellationToken)
+    private async Task HandleSubscriptionCreatedAsync(
+        JsonElement dataElement,
+        CancellationToken cancellationToken)
     {
-        try
+        if (!dataElement.TryGetProperty(
+                "subscription_code",
+                out var subscriptionCodeElement))
         {
-            var payment =
-                await _paymentService.GetAsync(
-                    paymentId,
-                    cancellationToken);
+            return;
+        }
 
-            return Ok(payment);
-        }
-        catch (InvalidOperationException ex)
+        if (!dataElement.TryGetProperty(
+        "email_token",
+        out var emailTokenElement))
         {
-            return NotFound(new
-            {
-                message = ex.Message
-            });
+            return;
         }
+
+        if (!dataElement.TryGetProperty(
+                "customer",
+                out var customerElement))
+        {
+            return;
+        }
+
+        if (!customerElement.TryGetProperty(
+                "customer_code",
+                out var customerCodeElement))
+        {
+            return;
+        }
+
+        if (!customerElement.TryGetProperty(
+                "email",
+                out var emailElement))
+        {
+            return;
+        }
+
+        var subscriptionCode =
+            subscriptionCodeElement.GetString();
+
+        var emailToken =
+    emailTokenElement.GetString();
+
+        var customerCode =
+            customerCodeElement.GetString();
+
+        var customerEmail =
+            emailElement.GetString();
+
+        if (string.IsNullOrWhiteSpace(subscriptionCode) ||
+            string.IsNullOrWhiteSpace(customerCode) ||
+            string.IsNullOrWhiteSpace(customerEmail) ||
+            string.IsNullOrWhiteSpace(emailToken))
+        {
+            return;
+        }
+
+        await _paymentService
+            .ProcessSubscriptionCreatedAsync(
+                customerEmail,
+                customerCode,
+                subscriptionCode,
+                emailToken,
+                cancellationToken);
+    }
+
+    private static string? GetSubscriptionCode(
+    JsonElement dataElement)
+    {
+        if (dataElement.TryGetProperty(
+                "subscription_code",
+                out var directCode))
+        {
+            return directCode.GetString();
+        }
+
+        if (dataElement.TryGetProperty(
+                "subscription",
+                out var subscriptionElement) &&
+            subscriptionElement.ValueKind ==
+                JsonValueKind.Object &&
+            subscriptionElement.TryGetProperty(
+                "subscription_code",
+                out var nestedCode))
+        {
+            return nestedCode.GetString();
+        }
+
+        return null;
     }
 }

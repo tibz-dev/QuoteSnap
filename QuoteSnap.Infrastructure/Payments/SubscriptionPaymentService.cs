@@ -207,6 +207,139 @@ public class SubscriptionPaymentService
         }
     }
 
+    public async Task ProcessSubscriptionCreatedAsync(
+    string customerEmail,
+    string customerCode,
+    string subscriptionCode,
+    string emailToken,
+    CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(customerEmail))
+            throw new ArgumentException("Customer email is required.");
+
+        if (string.IsNullOrWhiteSpace(subscriptionCode))
+            throw new ArgumentException("Subscription code is required.");
+
+        if (string.IsNullOrWhiteSpace(emailToken))
+            throw new ArgumentException(
+                "Subscription email token is required.");
+
+        var normalizedEmail =
+            _userManager.NormalizeEmail(customerEmail);
+
+        var user =
+            await _userManager.Users
+                .FirstOrDefaultAsync(
+                    x => x.NormalizedEmail == normalizedEmail,
+                    cancellationToken);
+
+        if (user is null)
+        {
+            throw new InvalidOperationException(
+                "QuoteSnap user could not be found for the Paystack subscription.");
+        }
+
+        var subscription =
+            await _dbContext.Subscriptions
+                .FirstOrDefaultAsync(
+                    x => x.BusinessId == user.BusinessId,
+                    cancellationToken);
+
+        if (subscription is null)
+        {
+            throw new InvalidOperationException(
+                "QuoteSnap subscription could not be found.");
+        }
+
+        //// Webhooks may be delivered more than once.
+        //if (string.Equals(
+        //        subscription.ExternalSubscriptionId,
+        //        subscriptionCode,
+        //        StringComparison.Ordinal))
+        //{
+        //    return;
+        //}
+
+        subscription.PaymentProvider = "Paystack";
+        subscription.ExternalCustomerId = customerCode;
+        subscription.ExternalSubscriptionId = subscriptionCode;
+        subscription.ExternalSubscriptionEmailToken = emailToken;
+        subscription.UpdatedAt = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync(
+            cancellationToken);
+    }
+
+    public async Task ProcessSubscriptionRenewedAsync(
+    string subscriptionCode,
+    CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(subscriptionCode))
+            return;
+
+        var subscription =
+            await _dbContext.Subscriptions
+                .Include(x => x.Business)
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.PaymentProvider == "Paystack" &&
+                        x.ExternalSubscriptionId == subscriptionCode,
+                    cancellationToken);
+
+        if (subscription is null)
+            return;
+
+        var now = DateTime.UtcNow;
+
+        subscription.Status = SubscriptionStatus.Active;
+        subscription.CurrentPeriodStartsAt = now;
+        subscription.CurrentPeriodEndsAt = now.AddMonths(1);
+        subscription.EndedAt = null;
+        subscription.UpdatedAt = now;
+
+        subscription.Business.SubscriptionPlan =
+            subscription.Plan;
+
+        subscription.Business.UpdatedAt = now;
+
+        await _dbContext.SaveChangesAsync(
+            cancellationToken);
+    }
+
+   
+    public async Task ProcessSubscriptionPaymentFailedAsync(
+    string subscriptionCode,
+    CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(subscriptionCode))
+            return;
+
+        var subscription =
+            await _dbContext.Subscriptions
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.PaymentProvider == "Paystack" &&
+                        x.ExternalSubscriptionId == subscriptionCode,
+                    cancellationToken);
+
+        if (subscription is null)
+            return;
+
+        if (subscription.Status ==
+            SubscriptionStatus.Cancelled)
+        {
+            return;
+        }
+
+        subscription.Status =
+            SubscriptionStatus.PastDue;
+
+        subscription.UpdatedAt =
+            DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync(
+            cancellationToken);
+    }
     public async Task ProcessSuccessfulPaymentAsync(
     string reference,
     CancellationToken cancellationToken = default)
@@ -325,6 +458,42 @@ public class SubscriptionPaymentService
             cancellationToken);
     }
 
+    public async Task ProcessSubscriptionDisabledAsync(
+    string subscriptionCode,
+    CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(subscriptionCode))
+            return;
+
+        var subscription =
+            await _dbContext.Subscriptions
+                .Include(x => x.Business)
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.PaymentProvider == "Paystack" &&
+                        x.ExternalSubscriptionId == subscriptionCode,
+                    cancellationToken);
+
+        if (subscription is null)
+            return;
+
+        var now = DateTime.UtcNow;
+
+        subscription.Status =
+            SubscriptionStatus.Cancelled;
+
+        subscription.CancelledAt = now;
+        subscription.EndedAt = now;
+        subscription.UpdatedAt = now;
+
+        subscription.Business.SubscriptionPlan =
+            SubscriptionPlan.Free;
+
+        subscription.Business.UpdatedAt = now;
+
+        await _dbContext.SaveChangesAsync(
+            cancellationToken);
+    }
     private string GetPaystackPlanCode(
     SubscriptionPlan plan)
     {

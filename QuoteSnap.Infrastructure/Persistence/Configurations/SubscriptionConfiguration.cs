@@ -43,5 +43,8 @@ public class SubscriptionConfiguration
             .HasForeignKey<Subscription>(
                 x => x.BusinessId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Property(x=> x.ExternalSubscriptionEmailToken)
+            .HasMaxLength (500);
     }
 }

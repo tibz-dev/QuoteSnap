@@ -27,8 +27,12 @@ public class Subscription : TenantEntity
 
     public string? ExternalSubscriptionId { get; set; }
 
+    public string? ExternalSubscriptionEmailToken { get; set; }
+
     public Business Business { get; set; } = null!;
 
     public ICollection<SubscriptionPayment> Payments { get; set; }
     = new List<SubscriptionPayment>();
+
+    
 }
