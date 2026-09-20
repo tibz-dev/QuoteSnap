@@ -314,6 +314,47 @@ public class QuoteService
         return quoteItem;
     }
 
+    public async Task<QuoteDto?> UpdateStatusAsync(
+    Guid id,
+    QuoteStatus status)
+    {
+        var businessId = GetBusinessId();
+
+        var quote = await _dbContext.Quotes
+            .FirstOrDefaultAsync(x =>
+                x.Id == id &&
+                x.BusinessId == businessId);
+
+        if (quote is null)
+        {
+            return null;
+        }
+
+        if (!Enum.IsDefined(typeof(QuoteStatus), status))
+        {
+            throw new ArgumentException(
+                "Invalid quote status.");
+        }
+
+        if (quote.Status == QuoteStatus.ConvertedToInvoice)
+        {
+            throw new InvalidOperationException(
+                "A quote that has been converted to an invoice cannot be changed.");
+        }
+
+        if (status == QuoteStatus.ConvertedToInvoice)
+        {
+            throw new InvalidOperationException(
+                "A quote can only be marked as converted when an invoice is created.");
+        }
+
+        quote.Status = status;
+        quote.UpdatedAt = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync();
+
+        return await GetByIdAsync(id);
+    }
     private static string GetCurrencyCode(
         string? requestedCurrencyCode,
         string businessCurrencyCode)

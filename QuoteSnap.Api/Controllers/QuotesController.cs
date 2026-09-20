@@ -77,4 +77,43 @@ public class QuotesController : ControllerBase
             });
         }
     }
+
+    // PATCH: /api/quotes/{id}/status
+    [HttpPatch("{id:guid}/status")]
+    public async Task<ActionResult<QuoteDto>> UpdateStatus(
+        Guid id,
+        UpdateQuoteStatusRequest request)
+    {
+        try
+        {
+            var quote =
+                await _quoteService.UpdateStatusAsync(
+                    id,
+                    request.Status);
+
+            if (quote is null)
+            {
+                return NotFound(new
+                {
+                    message = "Quote not found."
+                });
+            }
+
+            return Ok(quote);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new
+            {
+                message = ex.Message
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new
+            {
+                message = ex.Message
+            });
+        }
+    }
 }
