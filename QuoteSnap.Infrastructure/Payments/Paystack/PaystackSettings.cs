@@ -9,4 +9,8 @@ public class PaystackSettings
     public string PublicKey { get; set; } = string.Empty;
 
     public string CallbackUrl { get; set; } = string.Empty;
+
+    public string ProMonthlyPlanCode { get; set; } = string.Empty;
+
+    public string BusinessMonthlyPlanCode { get; set; } = string.Empty;
 }

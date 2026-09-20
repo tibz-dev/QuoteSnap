@@ -21,6 +21,7 @@ public class SubscriptionPaymentService
     private readonly PaystackService _paystackService;
     private readonly SubscriptionSettings _settings;
     private readonly NotificationService _notificationService;
+    private readonly PaystackSettings _paystackSettings;
 
     public SubscriptionPaymentService(
         ApplicationDbContext dbContext,
@@ -28,7 +29,8 @@ public class SubscriptionPaymentService
         UserManager<ApplicationUser> userManager,
         PaystackService paystackService,
         IOptions<SubscriptionSettings> options,
-        NotificationService notificationService)
+        NotificationService notificationService,
+        IOptions<PaystackSettings> paystackOptions)
     {
         _dbContext = dbContext;
         _currentUser = currentUser;
@@ -36,6 +38,7 @@ public class SubscriptionPaymentService
         _paystackService = paystackService;
         _notificationService = notificationService;
         _settings = options.Value;
+        _paystackSettings = paystackOptions.Value;
     }
 
 
@@ -123,6 +126,9 @@ public class SubscriptionPaymentService
         var amount =
             GetPlanPrice(request.Plan);
 
+        var planCode =
+            GetPaystackPlanCode(request.Plan);
+
         var currency =
             _settings.BillingCurrency
                 .Trim()
@@ -158,6 +164,7 @@ public class SubscriptionPaymentService
                         amount,
                         currency,
                         reference,
+                        planCode,
                         cancellationToken);
 
             payment.ExternalReference =
@@ -313,8 +320,115 @@ public class SubscriptionPaymentService
 
         await _dbContext.SaveChangesAsync(
             cancellationToken);
+        await QueuePaymentConfirmationAsync(
+            payment,
+            cancellationToken);
     }
 
+    private string GetPaystackPlanCode(
+    SubscriptionPlan plan)
+    {
+        var planCode = plan switch
+        {
+            SubscriptionPlan.Pro =>
+                _paystackSettings.ProMonthlyPlanCode,
+
+            SubscriptionPlan.Business =>
+                _paystackSettings.BusinessMonthlyPlanCode,
+
+            _ => throw new ArgumentException(
+                "Unsupported subscription plan.")
+        };
+
+        if (string.IsNullOrWhiteSpace(planCode))
+        {
+            throw new InvalidOperationException(
+                $"Paystack plan code for {plan} is not configured.");
+        }
+
+        return planCode;
+    }
+
+    private async Task QueuePaymentConfirmationAsync(
+    SubscriptionPayment payment,
+    CancellationToken cancellationToken)
+    {
+        var user =
+            await _userManager.Users
+                .AsNoTracking()
+                .Where(x =>
+                    x.BusinessId == payment.BusinessId &&
+                    x.IsActive)
+                .OrderBy(x => x.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+
+        if (user is null ||
+            string.IsNullOrWhiteSpace(user.Email))
+        {
+            return;
+        }
+
+        var safeFirstName =
+            System.Net.WebUtility.HtmlEncode(
+                user.FirstName);
+
+        var safePlan =
+            System.Net.WebUtility.HtmlEncode(
+                payment.Plan.ToString());
+
+        var safeCurrency =
+            System.Net.WebUtility.HtmlEncode(
+                payment.CurrencyCode);
+
+        var amount =
+            payment.Amount.ToString("N2");
+
+        var html = $"""
+        <div style="
+            font-family:Arial,sans-serif;
+            line-height:1.6;
+            max-width:600px;
+            margin:auto;">
+
+            <h2>Payment successful</h2>
+
+            <p>Hi {safeFirstName},</p>
+
+            <p>
+                Your QuoteSnap subscription payment
+                was successful.
+            </p>
+
+            <p>
+                <strong>Plan:</strong> {safePlan}<br />
+                <strong>Amount:</strong>
+                {safeCurrency} {amount}
+            </p>
+
+            <p>
+                Your {safePlan} subscription is now active.
+            </p>
+
+            <p>
+                Regards,<br />
+                <strong>QuoteSnap</strong>
+            </p>
+
+        </div>
+        """;
+
+        await _notificationService.ScheduleAsync(
+            payment.BusinessId,
+            user.Id,
+            NotificationType.PaymentSuccessful,
+            user.Email,
+            "QuoteSnap payment successful",
+            html,
+            DateTime.UtcNow,
+            "SubscriptionPayment",
+            payment.Id,
+            cancellationToken);
+    }
     private decimal GetPlanPrice(
         SubscriptionPlan plan)
     {

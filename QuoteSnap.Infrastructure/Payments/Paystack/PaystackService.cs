@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using System.Text.Json.Serialization;
 
 namespace QuoteSnap.Infrastructure.Payments.Paystack;
 
@@ -23,6 +24,7 @@ public class PaystackService
         decimal amount,
         string currency,
         string reference,
+        string planCode,
         CancellationToken cancellationToken = default)
     {
         ValidateSettings();
@@ -53,6 +55,7 @@ public class PaystackService
                 amount = amountInMinorUnits,
                 currency,
                 reference,
+                plan = planCode,
                 callback_url = _settings.CallbackUrl
             });
 
@@ -214,12 +217,15 @@ public class PaystackService
 
     private sealed class PaystackInitializeData
     {
+        [JsonPropertyName("authorization_url")]
         public string AuthorizationUrl { get; set; }
             = string.Empty;
 
+        [JsonPropertyName("access_code")]
         public string AccessCode { get; set; }
             = string.Empty;
 
+        [JsonPropertyName("reference")]
         public string Reference { get; set; }
             = string.Empty;
     }

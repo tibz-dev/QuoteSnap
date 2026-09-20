@@ -310,6 +310,63 @@ public class AuthService
             trialEndsAt,
             "Subscription",
             subscription.Id);
+
+        await _notificationService.ScheduleAsync(
+            business.Id,
+            user.Id,
+            NotificationType.PostExpiryReminder,
+            user.Email!,
+            "Your QuoteSnap trial has ended",
+            BuildPostExpiryReminderEmail(
+                user,
+                business),
+            subscription.TrialEndsAt.Value.AddDays(3),
+            "Subscription",
+            subscription.Id);
+    }
+
+    private static string BuildPostExpiryReminderEmail(
+    ApplicationUser user,
+    Business business)
+    {
+        var firstName =
+            System.Net.WebUtility.HtmlEncode(
+                user.FirstName);
+
+        var businessName =
+            System.Net.WebUtility.HtmlEncode(
+                business.Name);
+
+        return $"""
+        <div style="
+            font-family:Arial,sans-serif;
+            line-height:1.6;
+            max-width:600px;
+            margin:auto;">
+
+            <h2>Your QuoteSnap trial has ended</h2>
+
+            <p>Hi {firstName},</p>
+
+            <p>
+                Your QuoteSnap trial for
+                <strong>{businessName}</strong>
+                ended a few days ago.
+            </p>
+
+            <p>
+                You can upgrade your subscription
+                whenever you're ready to continue
+                using the paid QuoteSnap features.
+            </p>
+
+            <p>
+                Regards,<br />
+                <strong>QuoteSnap</strong>
+            </p>
+
+        </div>
+        """;
     }
 
     private async Task ScheduleTrialReminderAsync(

@@ -125,4 +125,28 @@ public class SubscriptionPaymentsController : ControllerBase
 
         return Ok();
     }
+
+    [Authorize]
+    [HttpGet("{paymentId:guid}")]
+    public async Task<IActionResult> GetPayment(
+    Guid paymentId,
+    CancellationToken cancellationToken)
+    {
+        try
+        {
+            var payment =
+                await _paymentService.GetAsync(
+                    paymentId,
+                    cancellationToken);
+
+            return Ok(payment);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new
+            {
+                message = ex.Message
+            });
+        }
+    }
 }
