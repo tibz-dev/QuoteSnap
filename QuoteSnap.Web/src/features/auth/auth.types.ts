@@ -3,6 +3,16 @@ export type LoginRequest = {
   password: string
 }
 
+export type RegisterRequest = {
+  firstName: string
+  lastName: string
+  email: string
+  password: string
+  businessName: string
+  countryCode: string
+  currencyCode: string
+}
+
 export type AuthResponse = {
   token: string
   expiresAt: string
