@@ -85,7 +85,7 @@ async function request<T>(
   try {
     return JSON.parse(rawBody) as T
   } catch {
-    return rawBody as T
+    return rawBody as unknown as T
   }
 }
 
