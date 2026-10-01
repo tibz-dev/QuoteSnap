@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using QuoteSnap.Api.Middleware;
 using QuoteSnap.Api.Services;
 using QuoteSnap.Application.Common.Interfaces;
 using QuoteSnap.Application.Email;
@@ -84,6 +85,7 @@ builder.Services.Configure<SubscriptionSettings>(
         SubscriptionSettings.SectionName));
 
 builder.Services.AddScoped<SubscriptionService>();
+builder.Services.AddScoped<SubscriptionEntitlementService>();
 
 builder.Services.AddHostedService<
     SubscriptionLifecycleWorker>();
@@ -242,6 +244,7 @@ app.UseHttpsRedirection();
 app.UseCors("Frontend");
 
 app.UseAuthentication();
+app.UseMiddleware<SubscriptionAccessMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
