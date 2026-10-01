@@ -21,6 +21,7 @@ public class AuthService
     private readonly NotificationService _notificationService;
     private readonly SubscriptionSettings _subscriptionSettings;
     private readonly string _frontendBaseUrl;
+    private readonly string _apiBaseUrl;
 
     public AuthService(
         ApplicationDbContext dbContext,
@@ -40,6 +41,11 @@ public class AuthService
         _frontendBaseUrl =
             (configuration["App:FrontendBaseUrl"]
                 ?? "http://localhost:5173")
+            .TrimEnd('/');
+
+        _apiBaseUrl =
+            (configuration["App:ApiBaseUrl"]
+                ?? "https://localhost:7011")
             .TrimEnd('/');
 
     }
@@ -600,7 +606,7 @@ public class AuthService
             Uri.EscapeDataString(token);
 
         var verificationUrl =
-            $"https://localhost:7011/api/auth/verify-email" +
+            $"{_apiBaseUrl}/api/auth/verify-email" +
             $"?userId={user.Id}" +
             $"&token={encodedToken}";
 
