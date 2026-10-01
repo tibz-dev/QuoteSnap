@@ -138,7 +138,8 @@ public class QuoteService
         var customerExists = await _dbContext.Customers
             .AnyAsync(x =>
                 x.Id == request.CustomerId &&
-                x.BusinessId == businessId);
+                x.BusinessId == businessId &&
+                x.IsActive);
 
         if (!customerExists)
         {
