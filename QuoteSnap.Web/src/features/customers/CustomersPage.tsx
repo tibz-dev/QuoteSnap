@@ -148,7 +148,10 @@ export function CustomersPage() {
           : [savedCustomer, ...current],
       )
 
-      closeForm()
+      setIsFormOpen(false)
+      setEditingCustomer(null)
+      setForm(emptyForm)
+      setFormError("")
     } catch (error) {
       setFormError(
         error instanceof ApiError
