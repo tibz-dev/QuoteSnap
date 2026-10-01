@@ -126,6 +126,7 @@ builder.Services.AddScoped<CatalogueItemService>();
 builder.Services.AddScoped<QuoteService>();
 builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<ReceiptService>();
+builder.Services.AddScoped<BusinessSettingsService>();
 builder.Services.AddScoped<PdfService>();
 builder.Services.AddScoped<NotificationService>();
 
