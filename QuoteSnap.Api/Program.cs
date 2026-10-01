@@ -26,6 +26,24 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
+var frontendBaseUrl =
+    (builder.Configuration["App:FrontendBaseUrl"]
+        ?? "http://localhost:5173")
+    .TrimEnd('/');
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(
+        "Frontend",
+        policy =>
+        {
+            policy
+                .WithOrigins(frontendBaseUrl)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
+});
+
 // SQL Server Express
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(
@@ -165,10 +183,6 @@ builder.Services.AddScoped<GoogleOAuthStateService>();
 
 builder.Services.AddScoped<EmailConnectionService>();
 
-builder.Services.AddScoped<GoogleOAuthService>();
-
-builder.Services.AddScoped<GoogleOAuthStateService>();
-
 builder.Services.AddScoped<DocumentDeliveryService>();
 
 // Swagger
@@ -224,6 +238,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors("Frontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
