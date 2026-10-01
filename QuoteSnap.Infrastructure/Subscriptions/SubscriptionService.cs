@@ -84,12 +84,18 @@ public class SubscriptionService
             _dbContext.Entry(subscription).State =
                 EntityState.Detached;
 
-            subscription =
+            var existingSubscription =
                 await _dbContext.Subscriptions
                     .FirstOrDefaultAsync(
                         x => x.BusinessId == businessId,
-                        cancellationToken)
-                ?? throw;
+                        cancellationToken);
+
+            if (existingSubscription is null)
+            {
+                throw;
+            }
+
+            subscription = existingSubscription;
         }
 
         return subscription;
