@@ -1,6 +1,7 @@
 import { api } from "@/lib/api"
 import type {
   BusinessSettings,
+  BusinessSettingsInput,
   EmailConnection,
   InitializeSubscriptionResponse,
   Subscription,
@@ -11,8 +12,8 @@ export const settingsApi = {
     return api.get<BusinessSettings>("/api/business")
   },
 
-  updateBusiness(request: BusinessSettings) {
-    return api.put<BusinessSettings, BusinessSettings>("/api/business", request)
+  updateBusiness(request: BusinessSettingsInput) {
+    return api.put<BusinessSettings, BusinessSettingsInput>("/api/business", request)
   },
 
   getEmailConnections() {
