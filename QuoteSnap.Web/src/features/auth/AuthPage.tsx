@@ -33,11 +33,36 @@ export function AuthPage({
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [authError, setAuthError] = useState("")
+  const [authNotice, setAuthNotice] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [forgotOpen, setForgotOpen] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState("")
+  const [forgotMessage, setForgotMessage] = useState("")
+  const [forgotError, setForgotError] = useState("")
+  const [isRecovering, setIsRecovering] = useState(false)
+  const [resetContext] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+
+    return {
+      userId: params.get("userId") || "",
+      token: params.get("token") || "",
+      isReset: params.get("mode") === "reset-password",
+    }
+  })
+  const [resetOpen, setResetOpen] = useState(
+    resetContext.isReset &&
+      Boolean(resetContext.userId) &&
+      Boolean(resetContext.token),
+  )
+  const [newPassword, setNewPassword] = useState("")
+  const [resetMessage, setResetMessage] = useState("")
+  const [resetError, setResetError] = useState("")
+  const [isResetting, setIsResetting] = useState(false)
 
   const changeMode = (nextMode: AuthMode) => {
     setMode(nextMode)
     setAuthError("")
+    setAuthNotice("")
     setPassword("")
   }
 
@@ -94,6 +119,68 @@ export function AuthPage({
       }
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleForgotPassword = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault()
+    const normalizedEmail = forgotEmail.trim().toLowerCase()
+
+    if (!normalizedEmail) {
+      setForgotError("Enter your email address.")
+      return
+    }
+
+    try {
+      setIsRecovering(true)
+      setForgotError("")
+      setForgotMessage("")
+      const result = await authApi.forgotPassword({
+        email: normalizedEmail,
+      })
+      setForgotMessage(result.message)
+    } catch (error) {
+      setForgotError(
+        error instanceof ApiError
+          ? error.message
+          : "We couldn't start password recovery.",
+      )
+    } finally {
+      setIsRecovering(false)
+    }
+  }
+
+  const handleResetPassword = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault()
+
+    if (!newPassword) {
+      setResetError("Enter your new password.")
+      return
+    }
+
+    try {
+      setIsResetting(true)
+      setResetError("")
+      setResetMessage("")
+      const result = await authApi.resetPassword({
+        userId: resetContext.userId,
+        token: resetContext.token,
+        newPassword,
+      })
+      setResetMessage(result.message)
+      window.history.replaceState({}, "", window.location.pathname)
+    } catch (error) {
+      setResetError(
+        error instanceof ApiError
+          ? error.message
+          : "We couldn't reset your password.",
+      )
+    } finally {
+      setIsResetting(false)
     }
   }
 
@@ -256,6 +343,12 @@ export function AuthPage({
                 {mode === "login" && (
                   <button
                     type="button"
+                    onClick={() => {
+                      setForgotEmail(email)
+                      setForgotError("")
+                      setForgotMessage("")
+                      setForgotOpen(true)
+                    }}
                     className="text-sm font-medium text-primary hover:underline"
                   >
                     Forgot password?
@@ -298,6 +391,18 @@ export function AuthPage({
                 role="alert"
               >
                 {authError}
+              </div>
+            )}
+
+            {authNotice && (
+              <div
+                className="rounded-xl px-4 py-3 text-sm"
+                style={{
+                  color: "var(--status-success)",
+                  backgroundColor: "var(--status-success-bg)",
+                }}
+              >
+                {authNotice}
               </div>
             )}
 
@@ -408,6 +513,156 @@ export function AuthPage({
           </div>
         </div>
       </aside>
+
+      {forgotOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 sm:items-center sm:p-6">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            onClick={() => !isRecovering && setForgotOpen(false)}
+            aria-label="Close password recovery"
+          />
+          <div className="relative z-10 w-full max-w-md rounded-t-3xl border border-border bg-card p-5 shadow-2xl sm:rounded-3xl sm:p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-semibold text-primary">
+                  PASSWORD RECOVERY
+                </p>
+                <h3 className="mt-1 text-xl font-semibold">Reset your password</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Enter your account email and QuoteSnap will send a secure reset link if the account exists.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={isRecovering}
+                onClick={() => setForgotOpen(false)}
+                className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-50"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleForgotPassword} className="mt-5 space-y-4">
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium">Email address</span>
+                <input
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(event) => setForgotEmail(event.target.value)}
+                  placeholder="you@business.co.za"
+                  className="h-11 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus:border-primary"
+                />
+              </label>
+
+              {forgotError && (
+                <div
+                  className="rounded-xl px-4 py-3 text-sm"
+                  style={{
+                    color: "var(--status-danger)",
+                    backgroundColor: "var(--status-danger-bg)",
+                  }}
+                >
+                  {forgotError}
+                </div>
+              )}
+
+              {forgotMessage && (
+                <div
+                  className="rounded-xl px-4 py-3 text-sm"
+                  style={{
+                    color: "var(--status-success)",
+                    backgroundColor: "var(--status-success-bg)",
+                  }}
+                >
+                  {forgotMessage}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isRecovering}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {isRecovering && <LoaderCircle className="size-4 animate-spin" />}
+                Send reset link
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {resetOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 sm:items-center sm:p-6">
+          <div className="relative z-10 w-full max-w-md rounded-t-3xl border border-border bg-card p-5 shadow-2xl sm:rounded-3xl sm:p-6">
+            <p className="text-xs font-semibold text-primary">NEW PASSWORD</p>
+            <h3 className="mt-1 text-xl font-semibold">Choose a new password</h3>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Use at least 8 characters with uppercase, lowercase, a number and a special character.
+            </p>
+
+            <form onSubmit={handleResetPassword} className="mt-5 space-y-4">
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium">New password</span>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  className="h-11 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus:border-primary"
+                />
+              </label>
+
+              {resetError && (
+                <div
+                  className="rounded-xl px-4 py-3 text-sm"
+                  style={{
+                    color: "var(--status-danger)",
+                    backgroundColor: "var(--status-danger-bg)",
+                  }}
+                >
+                  {resetError}
+                </div>
+              )}
+
+              {resetMessage && (
+                <div
+                  className="rounded-xl px-4 py-3 text-sm"
+                  style={{
+                    color: "var(--status-success)",
+                    backgroundColor: "var(--status-success-bg)",
+                  }}
+                >
+                  {resetMessage}
+                </div>
+              )}
+
+              {resetMessage ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetOpen(false)
+                    setNewPassword("")
+                    setAuthNotice("Password reset successfully. Sign in with your new password.")
+                  }}
+                  className="h-11 w-full rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"
+                >
+                  Back to sign in
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={isResetting}
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+                >
+                  {isResetting && <LoaderCircle className="size-4 animate-spin" />}
+                  Reset password
+                </button>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
