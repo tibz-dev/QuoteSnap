@@ -84,6 +84,13 @@ export const api = {
     })
   },
 
+  patch<TResponse, TBody>(path: string, body: TBody) {
+    return request<TResponse>(path, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    })
+  },
+
   delete(path: string) {
     return request<void>(path, {
       method: "DELETE",
