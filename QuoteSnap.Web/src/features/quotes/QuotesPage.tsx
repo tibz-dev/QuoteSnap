@@ -88,7 +88,11 @@ function defaultValidUntil() {
   return date.toISOString().slice(0, 10)
 }
 
-export function QuotesPage() {
+type QuotesPageProps = {
+  onNavigate?: (destination: string) => void
+}
+
+export function QuotesPage({ onNavigate }: QuotesPageProps) {
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [catalogue, setCatalogue] = useState<CatalogueItem[]>([])
@@ -389,6 +393,7 @@ export function QuotesPage() {
                     <th className="px-5 py-3 font-medium">Status</th>
                     <th className="px-5 py-3 font-medium">Valid until</th>
                     <th className="px-5 py-3 text-right font-medium">Total</th>
+                    <th className="px-5 py-3 text-right font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -447,6 +452,19 @@ export function QuotesPage() {
                         </td>
                         <td className="px-5 py-4 text-right text-sm font-semibold">
                           {formatMoney(quote.total, quote.currencyCode)}
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                          {quote.status === QuoteStatus.Accepted ? (
+                            <button
+                              type="button"
+                              onClick={() => onNavigate?.("Invoices")}
+                              className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground"
+                            >
+                              Invoice
+                            </button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </td>
                       </tr>
                     )
