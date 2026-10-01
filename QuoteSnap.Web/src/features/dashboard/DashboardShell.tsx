@@ -23,6 +23,7 @@ import { InvoicesPage } from "@/features/invoices/InvoicesPage"
 import { PaymentsPage } from "@/features/payments/PaymentsPage"
 import { QuotesPage } from "@/features/quotes/QuotesPage"
 import { ReceiptsPage } from "@/features/receipts/ReceiptsPage"
+import { SettingsPage } from "@/features/settings/SettingsPage"
 import { DashboardOverview } from "./DashboardOverview"
 
 type DashboardShellProps = {
@@ -232,6 +233,8 @@ export function DashboardShell({
 
         {activeItem === "Receipts" && <ReceiptsPage />}
 
+        {activeItem === "Settings" && <SettingsPage />}
+
         {![
           "Dashboard",
           "Customers",
@@ -240,6 +243,7 @@ export function DashboardShell({
           "Invoices",
           "Payments",
           "Receipts",
+          "Settings",
         ].includes(activeItem) && <ComingSoonPage title={activeItem} />}
       </div>
     </main>
