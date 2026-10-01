@@ -431,7 +431,11 @@ export function DashboardShell({
 
         {activeItem === "Receipts" && <ReceiptsPage />}
 
-        {activeItem === "Subscription" && <SubscriptionPage />}
+        {activeItem === "Subscription" && (
+          <SubscriptionPage
+            onSubscriptionChanged={() => void loadSubscriptionOverview()}
+          />
+        )}
 
         {activeItem === "Settings" && (
           <SettingsPage onNavigate={selectItem} />
