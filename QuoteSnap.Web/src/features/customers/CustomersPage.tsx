@@ -165,7 +165,7 @@ export function CustomersPage() {
 
   const handleDelete = async (customer: Customer) => {
     const confirmed = window.confirm(
-      `Delete ${customer.name}? This action cannot be undone.`,
+      `Remove ${customer.name} from active customers? Historical quotes and invoices will be kept, and this will free one customer slot on your plan.`,
     )
 
     if (!confirmed) {
