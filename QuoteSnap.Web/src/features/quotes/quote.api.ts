@@ -16,4 +16,8 @@ export const quoteApi = {
       { status },
     )
   },
+
+  downloadPdf(id: string) {
+    return api.download(`/api/quotes/${id}/pdf`)
+  },
 }
