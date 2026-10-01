@@ -78,6 +78,112 @@ public class SubscriptionPaymentService
         };
     }
 
+    public async Task<List<SubscriptionPaymentDto>> ListAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var businessId = GetBusinessId();
+
+        return await _dbContext.SubscriptionPayments
+            .AsNoTracking()
+            .Where(x => x.BusinessId == businessId)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new SubscriptionPaymentDto
+            {
+                Id = x.Id,
+                Plan = x.Plan,
+                Amount = x.Amount,
+                CurrencyCode = x.CurrencyCode,
+                Status = x.Status,
+                Reference = x.ExternalReference,
+                PaidAt = x.PaidAt,
+                FailedAt = x.FailedAt,
+                FailureReason = x.FailureReason,
+                CreatedAt = x.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<SubscriptionDto> CancelCurrentAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var businessId = GetBusinessId();
+
+        var subscription = await _dbContext.Subscriptions
+            .Include(x => x.Business)
+            .FirstOrDefaultAsync(
+                x => x.BusinessId == businessId,
+                cancellationToken)
+            ?? throw new InvalidOperationException(
+                "Subscription could not be found.");
+
+        if (subscription.Plan == SubscriptionPlan.Free ||
+            subscription.Status == SubscriptionStatus.Trial)
+        {
+            throw new InvalidOperationException(
+                "There is no paid subscription to cancel.");
+        }
+
+        if (subscription.Status == SubscriptionStatus.Cancelled)
+        {
+            return MapSubscription(subscription);
+        }
+
+        if (string.IsNullOrWhiteSpace(subscription.ExternalSubscriptionId) ||
+            string.IsNullOrWhiteSpace(
+                subscription.ExternalSubscriptionEmailToken))
+        {
+            throw new InvalidOperationException(
+                "Subscription provider details are not ready yet. Try again shortly.");
+        }
+
+        await _paystackService.DisableSubscriptionAsync(
+            subscription.ExternalSubscriptionId,
+            subscription.ExternalSubscriptionEmailToken,
+            cancellationToken);
+
+        var now = DateTime.UtcNow;
+
+        subscription.Status = SubscriptionStatus.Cancelled;
+        subscription.CancelledAt = now;
+        subscription.UpdatedAt = now;
+
+        if (!subscription.CurrentPeriodEndsAt.HasValue ||
+            subscription.CurrentPeriodEndsAt.Value <= now)
+        {
+            subscription.EndedAt = now;
+            subscription.Business.SubscriptionPlan = SubscriptionPlan.Free;
+            subscription.Business.UpdatedAt = now;
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return MapSubscription(subscription);
+    }
+
+    public async Task<string> GetManageLinkAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var businessId = GetBusinessId();
+
+        var subscription = await _dbContext.Subscriptions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.BusinessId == businessId,
+                cancellationToken)
+            ?? throw new InvalidOperationException(
+                "Subscription could not be found.");
+
+        if (string.IsNullOrWhiteSpace(subscription.ExternalSubscriptionId))
+        {
+            throw new InvalidOperationException(
+                "There is no Paystack subscription to manage.");
+        }
+
+        return await _paystackService.GetSubscriptionManageLinkAsync(
+            subscription.ExternalSubscriptionId,
+            cancellationToken);
+    }
+
     public async Task<InitializeSubscriptionPaymentResponse>
         InitializeAsync(
             InitializeSubscriptionPaymentRequest request,
@@ -102,6 +208,13 @@ public class SubscriptionPaymentService
         {
             throw new InvalidOperationException(
                 "Subscription could not be found.");
+        }
+
+        if (subscription.Status == SubscriptionStatus.Active &&
+            subscription.Plan == request.Plan)
+        {
+            throw new InvalidOperationException(
+                $"Your {request.Plan} subscription is already active.");
         }
 
         var userId = _currentUser.UserId;
@@ -260,6 +373,21 @@ public class SubscriptionPaymentService
         //    return;
         //}
 
+        if (!string.IsNullOrWhiteSpace(
+                subscription.ExternalSubscriptionId) &&
+            !string.Equals(
+                subscription.ExternalSubscriptionId,
+                subscriptionCode,
+                StringComparison.Ordinal) &&
+            !string.IsNullOrWhiteSpace(
+                subscription.ExternalSubscriptionEmailToken))
+        {
+            await _paystackService.DisableSubscriptionAsync(
+                subscription.ExternalSubscriptionId,
+                subscription.ExternalSubscriptionEmailToken,
+                cancellationToken);
+        }
+
         subscription.PaymentProvider = "Paystack";
         subscription.ExternalCustomerId = customerCode;
         subscription.ExternalSubscriptionId = subscriptionCode;
@@ -302,6 +430,37 @@ public class SubscriptionPaymentService
 
         subscription.Business.UpdatedAt = now;
 
+        var renewalReference =
+            $"RENEW-{subscriptionCode}-{now:yyyyMM}";
+
+        var alreadyRecorded =
+            await _dbContext.SubscriptionPayments
+                .AnyAsync(
+                    x =>
+                        x.BusinessId == subscription.BusinessId &&
+                        x.ExternalReference == renewalReference,
+                    cancellationToken);
+
+        if (!alreadyRecorded &&
+            subscription.Plan != SubscriptionPlan.Free)
+        {
+            _dbContext.SubscriptionPayments.Add(
+                new SubscriptionPayment
+                {
+                    BusinessId = subscription.BusinessId,
+                    SubscriptionId = subscription.Id,
+                    Plan = subscription.Plan,
+                    Amount = GetPlanPrice(subscription.Plan),
+                    CurrencyCode = _settings.BillingCurrency
+                        .Trim()
+                        .ToUpperInvariant(),
+                    Status = SubscriptionPaymentStatus.Successful,
+                    PaymentProvider = "Paystack",
+                    ExternalReference = renewalReference,
+                    PaidAt = now
+                });
+        }
+
         await _dbContext.SaveChangesAsync(
             cancellationToken);
     }
@@ -334,8 +493,41 @@ public class SubscriptionPaymentService
         subscription.Status =
             SubscriptionStatus.PastDue;
 
-        subscription.UpdatedAt =
-            DateTime.UtcNow;
+        var now = DateTime.UtcNow;
+
+        subscription.UpdatedAt = now;
+
+        var failureReference =
+            $"FAILED-{subscriptionCode}-{now:yyyyMM}";
+
+        var alreadyRecorded =
+            await _dbContext.SubscriptionPayments
+                .AnyAsync(
+                    x =>
+                        x.BusinessId == subscription.BusinessId &&
+                        x.ExternalReference == failureReference,
+                    cancellationToken);
+
+        if (!alreadyRecorded &&
+            subscription.Plan != SubscriptionPlan.Free)
+        {
+            _dbContext.SubscriptionPayments.Add(
+                new SubscriptionPayment
+                {
+                    BusinessId = subscription.BusinessId,
+                    SubscriptionId = subscription.Id,
+                    Plan = subscription.Plan,
+                    Amount = GetPlanPrice(subscription.Plan),
+                    CurrencyCode = _settings.BillingCurrency
+                        .Trim()
+                        .ToUpperInvariant(),
+                    Status = SubscriptionPaymentStatus.Failed,
+                    PaymentProvider = "Paystack",
+                    ExternalReference = failureReference,
+                    FailedAt = now,
+                    FailureReason = "Recurring subscription payment failed."
+                });
+        }
 
         await _dbContext.SaveChangesAsync(
             cancellationToken);
@@ -611,6 +803,35 @@ public class SubscriptionPaymentService
 
             _ => throw new ArgumentException(
                 "Unsupported subscription plan.")
+        };
+    }
+
+    private static SubscriptionDto MapSubscription(
+        Subscription subscription)
+    {
+        int? trialDaysRemaining = null;
+
+        if (subscription.TrialEndsAt.HasValue)
+        {
+            trialDaysRemaining = Math.Max(
+                0,
+                (int)Math.Ceiling(
+                    (subscription.TrialEndsAt.Value - DateTime.UtcNow)
+                    .TotalDays));
+        }
+
+        return new SubscriptionDto
+        {
+            Id = subscription.Id,
+            Plan = subscription.Plan,
+            Status = subscription.Status,
+            TrialStartedAt = subscription.TrialStartedAt,
+            TrialEndsAt = subscription.TrialEndsAt,
+            TrialDaysRemaining = trialDaysRemaining,
+            CurrentPeriodStartsAt = subscription.CurrentPeriodStartsAt,
+            CurrentPeriodEndsAt = subscription.CurrentPeriodEndsAt,
+            CancelledAt = subscription.CancelledAt,
+            EndedAt = subscription.EndedAt
         };
     }
 
