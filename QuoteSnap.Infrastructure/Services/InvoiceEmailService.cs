@@ -38,7 +38,6 @@ public class InvoiceEmailService
 
         var invoice =
             await _dbContext.Invoices
-                .AsNoTracking()
                 .Include(x => x.Customer)
                 .FirstOrDefaultAsync(
                     x =>
@@ -148,6 +147,12 @@ public class InvoiceEmailService
             {
                 delivery.Status =
                     DeliveryStatus.Sent;
+
+                if (invoice.Status == InvoiceStatus.Draft)
+                {
+                    invoice.Status = InvoiceStatus.Sent;
+                    invoice.UpdatedAt = DateTime.UtcNow;
+                }
 
                 delivery.ProviderMessageId =
                     result.ProviderMessageId;
