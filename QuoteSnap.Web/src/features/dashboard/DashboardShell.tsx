@@ -2,7 +2,6 @@ import { useState } from "react"
 import {
   Bell,
   ChevronDown,
-  CircleDollarSign,
   FileCheck2,
   FileText,
   LayoutDashboard,
@@ -18,6 +17,8 @@ import {
   X,
 } from "lucide-react"
 import type { AuthSession } from "@/features/auth/auth.types"
+import { CustomersPage } from "@/features/customers/CustomersPage"
+import { DashboardOverview } from "./DashboardOverview"
 
 type DashboardShellProps = {
   session: AuthSession
@@ -50,12 +51,13 @@ export function DashboardShell({
     [session.firstName, session.lastName].filter(Boolean).join(" ") ||
     session.email
 
-  const initials = [session.firstName, session.lastName]
-    .filter(Boolean)
-    .map((name) => name[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase() || "QS"
+  const initials =
+    [session.firstName, session.lastName]
+      .filter(Boolean)
+      .map((name) => name[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "QS"
 
   const selectItem = (label: string) => {
     setActiveItem(label)
@@ -177,6 +179,7 @@ export function DashboardShell({
               <Bell className="size-4.5" />
               <span className="absolute right-2.5 top-2.5 size-1.5 rounded-full bg-primary" />
             </button>
+
             <button
               type="button"
               onClick={onToggleTheme}
@@ -189,8 +192,10 @@ export function DashboardShell({
                 <Moon className="size-4.5" />
               )}
             </button>
+
             <button
               type="button"
+              onClick={() => selectItem("Invoices")}
               className="ml-1 hidden h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 sm:inline-flex"
             >
               <Plus className="size-4" />
@@ -199,156 +204,20 @@ export function DashboardShell({
           </div>
         </header>
 
-        {activeItem === "Dashboard" ? (
-          <DashboardOverview displayName={session.firstName || displayName} />
-        ) : (
+        {activeItem === "Dashboard" && (
+          <DashboardOverview
+            displayName={session.firstName || displayName}
+            onNavigate={selectItem}
+          />
+        )}
+
+        {activeItem === "Customers" && <CustomersPage />}
+
+        {!["Dashboard", "Customers"].includes(activeItem) && (
           <ComingSoonPage title={activeItem} />
         )}
       </div>
     </main>
-  )
-}
-
-function DashboardOverview({ displayName }: { displayName: string }) {
-  const cards = [
-    {
-      label: "Revenue",
-      value: "R 0.00",
-      helper: "Paid this month",
-      icon: CircleDollarSign,
-    },
-    {
-      label: "Outstanding",
-      value: "R 0.00",
-      helper: "Awaiting payment",
-      icon: WalletCards,
-    },
-    {
-      label: "Invoices",
-      value: "0",
-      helper: "Created this month",
-      icon: FileCheck2,
-    },
-    {
-      label: "Customers",
-      value: "0",
-      helper: "Active customers",
-      icon: Users,
-    },
-  ]
-
-  return (
-    <section className="px-4 py-7 sm:px-6 lg:px-8 lg:py-9">
-      <div className="mx-auto max-w-[1500px]">
-        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-          <div>
-            <p className="text-sm font-medium text-primary">OVERVIEW</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em]">
-              Good to see you, {displayName}.
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Here’s what’s happening with your business today.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-xl border border-border bg-card px-4 text-sm font-semibold transition hover:bg-muted sm:hidden"
-          >
-            <Plus className="size-4" />
-            New invoice
-          </button>
-        </div>
-
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {cards.map(({ label, value, helper, icon: Icon }) => (
-            <article
-              key={label}
-              className="rounded-2xl border border-border bg-card p-5"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{label}</p>
-                  <p className="mt-3 text-2xl font-semibold tracking-[-0.035em]">
-                    {value}
-                  </p>
-                </div>
-                <span className="flex size-10 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-                  <Icon className="size-[18px]" />
-                </span>
-              </div>
-              <p className="mt-4 text-xs text-muted-foreground">{helper}</p>
-            </article>
-          ))}
-        </div>
-
-        <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.7fr)]">
-          <section className="rounded-2xl border border-border bg-card">
-            <div className="flex items-center justify-between border-b border-border px-5 py-4">
-              <div>
-                <h3 className="font-semibold">Recent invoices</h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Your latest invoice activity will appear here.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="text-xs font-semibold text-primary hover:underline"
-              >
-                View all
-              </button>
-            </div>
-
-            <div className="flex min-h-64 flex-col items-center justify-center px-6 py-10 text-center">
-              <span className="flex size-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-                <FileCheck2 className="size-5" />
-              </span>
-              <p className="mt-4 text-sm font-semibold">No invoices yet</p>
-              <p className="mt-1 max-w-xs text-xs leading-5 text-muted-foreground">
-                Create your first invoice and QuoteSnap will track it here.
-              </p>
-              <button
-                type="button"
-                className="mt-5 inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3.5 text-xs font-semibold text-primary-foreground"
-              >
-                <Plus className="size-3.5" />
-                Create invoice
-              </button>
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-border bg-card p-5">
-            <h3 className="font-semibold">Quick actions</h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Common things you’ll do in QuoteSnap.
-            </p>
-
-            <div className="mt-5 space-y-2">
-              {[
-                ["Create a quote", FileText],
-                ["Add a customer", Users],
-                ["Record a payment", WalletCards],
-                ["Create a receipt", ReceiptText],
-              ].map(([label, Icon]) => {
-                const ActionIcon = Icon as typeof FileText
-
-                return (
-                  <button
-                    key={label as string}
-                    type="button"
-                    className="flex w-full items-center gap-3 rounded-xl border border-border bg-background px-3.5 py-3 text-left text-sm font-medium transition hover:bg-muted"
-                  >
-                    <span className="flex size-9 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-                      <ActionIcon className="size-4" />
-                    </span>
-                    {label as string}
-                  </button>
-                )
-              })}
-            </div>
-          </section>
-        </div>
-      </div>
-    </section>
   )
 }
 
@@ -361,8 +230,7 @@ function ComingSoonPage({ title }: { title: string }) {
           {title}
         </h2>
         <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-          The navigation foundation is ready. We’ll build this module against
-          the existing QuoteSnap API in the next development half.
+          This module is next in the frontend rollout.
         </p>
       </div>
     </section>
