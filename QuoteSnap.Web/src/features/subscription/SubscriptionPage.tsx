@@ -34,7 +34,11 @@ const paymentStatusLabels: Record<number, string> = {
   5: "Refunded",
 }
 
-export function SubscriptionPage() {
+export function SubscriptionPage({
+  onSubscriptionChanged,
+}: {
+  onSubscriptionChanged?: () => void
+}) {
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null)
   const [payments, setPayments] = useState<SubscriptionPayment[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -60,6 +64,7 @@ export function SubscriptionPage() {
 
       setOverview(overviewData)
       setPayments(paymentData)
+      onSubscriptionChanged?.()
 
       const params = new URLSearchParams(window.location.search)
 
