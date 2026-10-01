@@ -19,6 +19,7 @@ import {
 type DashboardOverviewProps = {
   displayName: string
   onNavigate: (destination: string) => void
+  onCreateInvoice: () => void
 }
 
 const invoiceStatuses: Record<
@@ -60,6 +61,7 @@ const invoiceStatuses: Record<
 export function DashboardOverview({
   displayName,
   onNavigate,
+  onCreateInvoice,
 }: DashboardOverviewProps) {
   const [data, setData] = useState<DashboardData>({
     invoices: [],
@@ -155,7 +157,7 @@ export function DashboardOverview({
           </div>
           <button
             type="button"
-            onClick={() => onNavigate("Invoices")}
+            onClick={onCreateInvoice}
             className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-xl border border-border bg-card px-4 text-sm font-semibold transition hover:bg-muted sm:hidden"
           >
             <Plus className="size-4" />
