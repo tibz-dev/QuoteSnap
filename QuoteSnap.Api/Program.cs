@@ -192,8 +192,20 @@ builder.Services.AddScoped<InvoiceEmailService>();
 
 builder.Services.AddScoped<GoogleOAuthService>();
 
-builder.Services.AddDataProtection()
+var dataProtection = builder.Services
+    .AddDataProtection()
     .SetApplicationName("QuoteSnap");
+
+var dataProtectionKeysPath =
+    builder.Configuration["DataProtection:KeysPath"];
+
+if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    Directory.CreateDirectory(dataProtectionKeysPath);
+
+    dataProtection.PersistKeysToFileSystem(
+        new DirectoryInfo(dataProtectionKeysPath));
+}
 
 builder.Services.AddScoped<ITokenProtectionService,TokenProtectionService>();
 
