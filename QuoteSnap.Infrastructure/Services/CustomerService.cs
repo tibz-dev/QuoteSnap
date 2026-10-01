@@ -25,7 +25,9 @@ public class CustomerService
 
         return await _dbContext.Customers
             .AsNoTracking()
-            .Where(x => x.BusinessId == businessId)
+            .Where(x =>
+                x.BusinessId == businessId &&
+                x.IsActive)
             .OrderBy(x => x.Name)
             .Select(x => new CustomerDto
             {
@@ -49,7 +51,8 @@ public class CustomerService
             .AsNoTracking()
             .Where(x =>
                 x.Id == id &&
-                x.BusinessId == businessId)
+                x.BusinessId == businessId &&
+                x.IsActive)
             .Select(x => new CustomerDto
             {
                 Id = x.Id,
@@ -84,7 +87,8 @@ public class CustomerService
             Phone = Clean(request.Phone),
             Address = Clean(request.Address),
             TaxRegistrationNumber =
-                Clean(request.TaxRegistrationNumber)
+                Clean(request.TaxRegistrationNumber),
+            IsActive = true
         };
 
         _dbContext.Customers.Add(customer);
@@ -109,7 +113,8 @@ public class CustomerService
         var customer = await _dbContext.Customers
             .FirstOrDefaultAsync(x =>
                 x.Id == id &&
-                x.BusinessId == businessId);
+                x.BusinessId == businessId &&
+                x.IsActive);
 
         if (customer is null)
         {
@@ -145,7 +150,8 @@ public class CustomerService
             return false;
         }
 
-        _dbContext.Customers.Remove(customer);
+        customer.IsActive = false;
+        customer.UpdatedAt = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync();
 
