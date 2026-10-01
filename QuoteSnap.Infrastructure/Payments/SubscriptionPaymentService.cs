@@ -150,7 +150,14 @@ public class SubscriptionPaymentService
         if (!subscription.CurrentPeriodEndsAt.HasValue ||
             subscription.CurrentPeriodEndsAt.Value <= now)
         {
+            subscription.Plan = SubscriptionPlan.Free;
+            subscription.Status = SubscriptionStatus.Active;
             subscription.EndedAt = now;
+            subscription.CurrentPeriodStartsAt = null;
+            subscription.CurrentPeriodEndsAt = null;
+            subscription.PaymentProvider = null;
+            subscription.ExternalSubscriptionId = null;
+            subscription.ExternalSubscriptionEmailToken = null;
             subscription.Business.SubscriptionPlan = SubscriptionPlan.Free;
             subscription.Business.UpdatedAt = now;
         }
@@ -711,11 +718,19 @@ public class SubscriptionPaymentService
 
         var now = DateTime.UtcNow;
 
-        subscription.Status =
-            SubscriptionStatus.Cancelled;
+        subscription.Plan =
+            SubscriptionPlan.Free;
 
-        subscription.CancelledAt = now;
+        subscription.Status =
+            SubscriptionStatus.Active;
+
+        subscription.CancelledAt ??= now;
         subscription.EndedAt = now;
+        subscription.CurrentPeriodStartsAt = null;
+        subscription.CurrentPeriodEndsAt = null;
+        subscription.PaymentProvider = null;
+        subscription.ExternalSubscriptionId = null;
+        subscription.ExternalSubscriptionEmailToken = null;
         subscription.UpdatedAt = now;
 
         subscription.Business.SubscriptionPlan =
