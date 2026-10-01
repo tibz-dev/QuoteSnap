@@ -229,7 +229,7 @@ export function DashboardOverview({
                     { label: "Create a quote", destination: "Quotes", icon: FileText },
                     { label: "Add a customer", destination: "Customers", icon: Users },
                     { label: "Record a payment", destination: "Payments", icon: WalletCards },
-                    { label: "Create a receipt", destination: "Receipts", icon: ReceiptText },
+                    { label: "View receipts", destination: "Receipts", icon: ReceiptText },
                   ].map(({ label, destination, icon: Icon }) => (
                     <button
                       key={label}
