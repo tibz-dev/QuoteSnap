@@ -20,17 +20,21 @@ async function request<T>(
   init: RequestInit = {},
 ): Promise<T> {
   const session = getAuthSession()
+  const headers = new Headers(init.headers)
+
+  headers.set("Accept", "application/json")
+
+  if (init.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json")
+  }
+
+  if (session?.token) {
+    headers.set("Authorization", `Bearer ${session.token}`)
+  }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
-    headers: {
-      Accept: "application/json",
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...(session?.token
-        ? { Authorization: `Bearer ${session.token}` }
-        : {}),
-      ...init.headers,
-    },
+    headers,
   })
 
   const rawBody = await response.text()
