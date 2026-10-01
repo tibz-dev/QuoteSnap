@@ -19,6 +19,7 @@ import {
 import type { AuthSession } from "@/features/auth/auth.types"
 import { ServicesPage } from "@/features/catalogue/ServicesPage"
 import { CustomersPage } from "@/features/customers/CustomersPage"
+import { InvoicesPage } from "@/features/invoices/InvoicesPage"
 import { QuotesPage } from "@/features/quotes/QuotesPage"
 import { DashboardOverview } from "./DashboardOverview"
 
@@ -217,9 +218,13 @@ export function DashboardShell({
 
         {activeItem === "Services" && <ServicesPage />}
 
-        {activeItem === "Quotes" && <QuotesPage />}
+        {activeItem === "Quotes" && (
+          <QuotesPage onNavigate={selectItem} />
+        )}
 
-        {!["Dashboard", "Customers", "Services", "Quotes"].includes(activeItem) && (
+        {activeItem === "Invoices" && <InvoicesPage />}
+
+        {!["Dashboard", "Customers", "Services", "Quotes", "Invoices"].includes(activeItem) && (
           <ComingSoonPage title={activeItem} />
         )}
       </div>
