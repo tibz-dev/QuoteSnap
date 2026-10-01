@@ -635,8 +635,26 @@ function Field({
 }
 
 function stripId(settings: BusinessSettings): BusinessSettingsInput {
-  const { id: _id, ...input } = settings
-  return input
+  return {
+    name: settings.name,
+    email: settings.email,
+    phone: settings.phone,
+    address: settings.address,
+    countryCode: settings.countryCode,
+    currencyCode: settings.currencyCode,
+    isTaxRegistered: settings.isTaxRegistered,
+    taxName: settings.taxName,
+    taxRegistrationNumber: settings.taxRegistrationNumber,
+    defaultTaxRate: settings.defaultTaxRate,
+    bankName: settings.bankName,
+    accountHolder: settings.accountHolder,
+    accountNumber: settings.accountNumber,
+    branchCode: settings.branchCode,
+    quotePrefix: settings.quotePrefix,
+    defaultQuoteValidityDays: settings.defaultQuoteValidityDays,
+    invoicePrefix: settings.invoicePrefix,
+    receiptPrefix: settings.receiptPrefix,
+  }
 }
 
 function clean(value: string | null) {
