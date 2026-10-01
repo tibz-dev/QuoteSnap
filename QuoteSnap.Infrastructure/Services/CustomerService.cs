@@ -143,7 +143,8 @@ public class CustomerService
         var customer = await _dbContext.Customers
             .FirstOrDefaultAsync(x =>
                 x.Id == id &&
-                x.BusinessId == businessId);
+                x.BusinessId == businessId &&
+                x.IsActive);
 
         if (customer is null)
         {
