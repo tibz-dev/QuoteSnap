@@ -433,7 +433,9 @@ export function DashboardShell({
 
         {activeItem === "Subscription" && <SubscriptionPage />}
 
-        {activeItem === "Settings" && <SettingsPage />}
+        {activeItem === "Settings" && (
+          <SettingsPage onNavigate={selectItem} />
+        )}
 
 
       </div>
