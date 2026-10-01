@@ -47,11 +47,7 @@ public class SubscriptionEntitlementService
             cancellationToken);
 
         var access = GetAccessState(subscription);
-        var effectivePlan =
-            subscription.Status == SubscriptionStatus.Trial &&
-            _settings.TrialUsesProAccess
-                ? SubscriptionPlan.Pro
-                : subscription.Plan;
+        var effectivePlan = ResolveEffectivePlan(subscription);
 
         return new SubscriptionOverviewDto
         {
@@ -69,7 +65,7 @@ public class SubscriptionEntitlementService
             CanWrite = access.CanWrite,
             IsReadOnly = !access.CanWrite,
             IsTrialUsingProAccess =
-                subscription.Status == SubscriptionStatus.Trial &&
+                IsActiveTrial(subscription) &&
                 _settings.TrialUsesProAccess,
             AccessMessage = access.Message
         };
@@ -105,11 +101,7 @@ public class SubscriptionEntitlementService
             businessId,
             cancellationToken);
 
-        var effectivePlan =
-            subscription.Status == SubscriptionStatus.Trial &&
-            _settings.TrialUsesProAccess
-                ? SubscriptionPlan.Pro
-                : subscription.Plan;
+        var effectivePlan = ResolveEffectivePlan(subscription);
 
         var plan = GetPlanDefinition(effectivePlan);
 
@@ -139,11 +131,7 @@ public class SubscriptionEntitlementService
             businessId,
             cancellationToken);
 
-        var effectivePlan =
-            subscription.Status == SubscriptionStatus.Trial &&
-            _settings.TrialUsesProAccess
-                ? SubscriptionPlan.Pro
-                : subscription.Plan;
+        var effectivePlan = ResolveEffectivePlan(subscription);
 
         var plan = GetPlanDefinition(effectivePlan);
         var usage = await GetUsageAsync(
@@ -286,22 +274,11 @@ public class SubscriptionEntitlementService
     {
         var now = DateTime.UtcNow;
 
-        if (subscription.Status == SubscriptionStatus.Trial)
+        if (subscription.Status == SubscriptionStatus.PastDue)
         {
-            if (!subscription.TrialEndsAt.HasValue ||
-                subscription.TrialEndsAt.Value > now)
-            {
-                return (true, null);
-            }
-
             return (
                 false,
-                "Your QuoteSnap trial has expired. Choose Pro or Business to create or change records.");
-        }
-
-        if (subscription.Status == SubscriptionStatus.Active)
-        {
-            return (true, null);
+                "Your subscription payment is past due. Update billing or renew to continue making changes.");
         }
 
         if (subscription.Status == SubscriptionStatus.Cancelled &&
@@ -310,19 +287,69 @@ public class SubscriptionEntitlementService
         {
             return (
                 true,
-                $"Your subscription is cancelled and remains active until {subscription.CurrentPeriodEndsAt.Value:dd MMM yyyy}.");
+                $"Your subscription is cancelled and remains active until {subscription.CurrentPeriodEndsAt.Value:dd MMM yyyy}. After that, Free plan limits apply.");
         }
 
-        if (subscription.Status == SubscriptionStatus.PastDue)
+        if (subscription.Status == SubscriptionStatus.Trial &&
+            !IsActiveTrial(subscription))
         {
             return (
-                false,
-                "Your subscription payment is past due. Update billing or renew to continue making changes.");
+                true,
+                "Your trial has ended. Free plan limits now apply.");
         }
 
-        return (
-            false,
-            "Your subscription is inactive. Choose a plan to continue making changes.");
+        if ((subscription.Status == SubscriptionStatus.Active ||
+             subscription.Status == SubscriptionStatus.Cancelled ||
+             subscription.Status == SubscriptionStatus.Expired) &&
+            subscription.Plan != SubscriptionPlan.Free &&
+            subscription.CurrentPeriodEndsAt.HasValue &&
+            subscription.CurrentPeriodEndsAt.Value <= now)
+        {
+            return (
+                true,
+                "Your paid period has ended. Free plan limits now apply.");
+        }
+
+        return (true, null);
+    }
+
+    private SubscriptionPlan ResolveEffectivePlan(
+        Subscription subscription)
+    {
+        if (IsActiveTrial(subscription) &&
+            _settings.TrialUsesProAccess)
+        {
+            return SubscriptionPlan.Pro;
+        }
+
+        var now = DateTime.UtcNow;
+
+        if (subscription.Status == SubscriptionStatus.Trial &&
+            !IsActiveTrial(subscription))
+        {
+            return SubscriptionPlan.Free;
+        }
+
+        if ((subscription.Status == SubscriptionStatus.Cancelled ||
+             subscription.Status == SubscriptionStatus.Expired ||
+             subscription.Status == SubscriptionStatus.Active) &&
+            subscription.Plan != SubscriptionPlan.Free &&
+            subscription.CurrentPeriodEndsAt.HasValue &&
+            subscription.CurrentPeriodEndsAt.Value <= now)
+        {
+            return SubscriptionPlan.Free;
+        }
+
+        return subscription.Plan;
+    }
+
+    private static bool IsActiveTrial(
+        Subscription subscription)
+    {
+        return
+            subscription.Status == SubscriptionStatus.Trial &&
+            (!subscription.TrialEndsAt.HasValue ||
+             subscription.TrialEndsAt.Value > DateTime.UtcNow);
     }
 
     private async Task<Subscription> GetSubscriptionAsync(
