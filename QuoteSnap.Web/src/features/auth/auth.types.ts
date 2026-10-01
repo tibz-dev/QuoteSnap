@@ -25,3 +25,17 @@ export type AuthResponse = {
 }
 
 export type AuthSession = AuthResponse
+
+export type ForgotPasswordRequest = {
+  email: string
+}
+
+export type ResetPasswordRequest = {
+  userId: string
+  token: string
+  newPassword: string
+}
+
+export type MessageResponse = {
+  message: string
+}
