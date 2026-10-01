@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Bell,
   ChevronDown,
@@ -20,6 +20,9 @@ import type { AuthSession } from "@/features/auth/auth.types"
 import { ServicesPage } from "@/features/catalogue/ServicesPage"
 import { CustomersPage } from "@/features/customers/CustomersPage"
 import { InvoicesPage } from "@/features/invoices/InvoicesPage"
+import { notificationApi } from "@/features/notifications/notification.api"
+import { NotificationsPanel } from "@/features/notifications/NotificationsPanel"
+import type { Notification } from "@/features/notifications/notification.types"
 import { PaymentsPage } from "@/features/payments/PaymentsPage"
 import { QuotesPage } from "@/features/quotes/QuotesPage"
 import { ReceiptsPage } from "@/features/receipts/ReceiptsPage"
@@ -52,6 +55,44 @@ export function DashboardShell({
 }: DashboardShellProps) {
   const [activeItem, setActiveItem] = useState("Dashboard")
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [invoiceCreateSignal, setInvoiceCreateSignal] = useState(0)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [notificationsLoading, setNotificationsLoading] = useState(false)
+  const [notificationsError, setNotificationsError] = useState("")
+
+  useEffect(() => {
+    void loadNotifications()
+  }, [])
+
+  async function loadNotifications() {
+    try {
+      setNotificationsLoading(true)
+      setNotificationsError("")
+      setNotifications(await notificationApi.getRecent())
+    } catch (error) {
+      setNotificationsError(
+        error instanceof Error
+          ? error.message
+          : "We couldn't load notifications.",
+      )
+    } finally {
+      setNotificationsLoading(false)
+    }
+  }
+
+  const attentionCount = notifications.filter(
+    (notification) =>
+      notification.status === 1 ||
+      notification.status === 2 ||
+      notification.status === 4,
+  ).length
+
+  const handleNewInvoice = () => {
+    setActiveItem("Invoices")
+    setMobileMenuOpen(false)
+    setInvoiceCreateSignal((current) => current + 1)
+  }
 
   const displayName =
     [session.firstName, session.lastName].filter(Boolean).join(" ") ||
@@ -144,7 +185,14 @@ export function DashboardShell({
                   {session.email}
                 </p>
               </div>
-              <ChevronDown className="size-4 text-muted-foreground" />
+              <button
+                type="button"
+                onClick={() => selectItem("Settings")}
+                className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Open settings"
+              >
+                <ChevronDown className="size-4" />
+              </button>
             </div>
             <button
               type="button"
@@ -179,11 +227,19 @@ export function DashboardShell({
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => {
+                setNotificationsOpen(true)
+                void loadNotifications()
+              }}
               className="relative inline-flex size-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
-              aria-label="Notifications"
+              aria-label="Open notifications"
             >
               <Bell className="size-4.5" />
-              <span className="absolute right-2.5 top-2.5 size-1.5 rounded-full bg-primary" />
+              {attentionCount > 0 && (
+                <span className="absolute right-1.5 top-1.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold leading-4 text-primary-foreground">
+                  {attentionCount > 9 ? "9+" : attentionCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -201,7 +257,7 @@ export function DashboardShell({
 
             <button
               type="button"
-              onClick={() => selectItem("Invoices")}
+              onClick={handleNewInvoice}
               className="ml-1 hidden h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 sm:inline-flex"
             >
               <Plus className="size-4" />
@@ -214,6 +270,7 @@ export function DashboardShell({
           <DashboardOverview
             displayName={session.firstName || displayName}
             onNavigate={selectItem}
+            onCreateInvoice={handleNewInvoice}
           />
         )}
 
@@ -225,7 +282,12 @@ export function DashboardShell({
           <QuotesPage onNavigate={selectItem} />
         )}
 
-        {activeItem === "Invoices" && <InvoicesPage />}
+        {activeItem === "Invoices" && (
+          <InvoicesPage
+            createSignal={invoiceCreateSignal}
+            onNavigate={selectItem}
+          />
+        )}
 
         {activeItem === "Payments" && (
           <PaymentsPage onNavigate={selectItem} />
@@ -246,6 +308,15 @@ export function DashboardShell({
           "Settings",
         ].includes(activeItem) && <ComingSoonPage title={activeItem} />}
       </div>
+
+      <NotificationsPanel
+        open={notificationsOpen}
+        notifications={notifications}
+        isLoading={notificationsLoading}
+        error={notificationsError}
+        onClose={() => setNotificationsOpen(false)}
+        onRefresh={() => void loadNotifications()}
+      />
     </main>
   )
 }
