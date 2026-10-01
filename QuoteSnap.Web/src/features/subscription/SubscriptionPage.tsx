@@ -182,10 +182,34 @@ export function SubscriptionPage() {
     }
   }
 
-  if (isLoading || !overview) {
+  if (isLoading) {
     return (
       <section className="flex min-h-[60vh] items-center justify-center">
         <LoaderCircle className="size-6 animate-spin text-primary" />
+      </section>
+    )
+  }
+
+  if (!overview) {
+    return (
+      <section className="px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-xl rounded-2xl border border-border bg-card p-6 text-center">
+          <ShieldAlert className="mx-auto size-7 text-muted-foreground" />
+          <p className="mt-3 text-lg font-semibold">
+            Subscription information could not be loaded
+          </p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            {error || "The subscription service did not return a usable response."}
+          </p>
+          <button
+            type="button"
+            onClick={() => void loadData()}
+            className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"
+          >
+            <RefreshCw className="size-4" />
+            Retry
+          </button>
+        </div>
       </section>
     )
   }
@@ -489,14 +513,24 @@ function PlanCard({
   changingPlan: number | null
   onChoose: (plan: number) => Promise<void>
 }) {
+  const samePlan = currentPlan === plan.plan
   const isCurrent =
-    currentPlan === plan.plan &&
-    (currentStatus === 1 ||
-      currentStatus === 2 ||
-      currentStatus === 4)
+    samePlan &&
+    (currentStatus === 1 || currentStatus === 2)
 
   const isPaid = plan.plan === 2 || plan.plan === 3
   const isUpgrade = plan.plan > currentPlan
+
+  const actionLabel =
+    samePlan && currentStatus === 3
+      ? "Retry payment"
+      : samePlan && currentStatus === 4
+        ? "Resume plan"
+        : samePlan && currentStatus === 5
+          ? "Renew plan"
+          : isUpgrade
+            ? "Upgrade"
+            : "Change to this plan"
 
   return (
     <article
@@ -564,7 +598,7 @@ function PlanCard({
             ) : (
               <ArrowUpRight className="size-4" />
             )}
-            {isUpgrade ? "Upgrade" : "Change to this plan"}
+            {actionLabel}
           </button>
         ) : (
           <p className="rounded-xl bg-muted px-3 py-2.5 text-center text-xs leading-5 text-muted-foreground">
