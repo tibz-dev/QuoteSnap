@@ -68,6 +68,7 @@ public class SubscriptionLifecycleWorker : BackgroundService
 
         var expiredTrials =
             await dbContext.Subscriptions
+                .Include(x => x.Business)
                 .Where(x =>
                     x.Status == SubscriptionStatus.Trial &&
                     x.TrialEndsAt.HasValue &&
@@ -76,11 +77,17 @@ public class SubscriptionLifecycleWorker : BackgroundService
 
         foreach (var subscription in expiredTrials)
         {
-            subscription.Status =
-                SubscriptionStatus.Expired;
-
-            subscription.EndedAt = now;
+            subscription.Plan = SubscriptionPlan.Free;
+            subscription.Status = SubscriptionStatus.Active;
+            subscription.CurrentPeriodStartsAt = null;
+            subscription.CurrentPeriodEndsAt = null;
+            subscription.EndedAt = null;
             subscription.UpdatedAt = now;
+
+            subscription.Business.SubscriptionPlan =
+                SubscriptionPlan.Free;
+
+            subscription.Business.UpdatedAt = now;
         }
 
         var expiredSubscriptions =
@@ -95,10 +102,14 @@ public class SubscriptionLifecycleWorker : BackgroundService
 
         foreach (var subscription in expiredSubscriptions)
         {
-            subscription.Status =
-                SubscriptionStatus.Expired;
-
+            subscription.Plan = SubscriptionPlan.Free;
+            subscription.Status = SubscriptionStatus.Active;
             subscription.EndedAt = now;
+            subscription.CurrentPeriodStartsAt = null;
+            subscription.CurrentPeriodEndsAt = null;
+            subscription.PaymentProvider = null;
+            subscription.ExternalSubscriptionId = null;
+            subscription.ExternalSubscriptionEmailToken = null;
             subscription.UpdatedAt = now;
 
             subscription.Business.SubscriptionPlan =
