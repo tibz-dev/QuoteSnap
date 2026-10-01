@@ -57,22 +57,34 @@ export function SettingsPage() {
     try {
       setIsLoading(true)
       setError("")
+      setSuccess("")
 
-      const [businessData, emailData, subscriptionData] = await Promise.all([
-        settingsApi.getBusiness(),
+      const businessData = await settingsApi.getBusiness()
+
+      setBusiness(businessData)
+      setForm(stripId(businessData))
+
+      const [emailResult, subscriptionResult] = await Promise.allSettled([
         settingsApi.getEmailConnections(),
         settingsApi.getSubscription(),
       ])
 
-      setBusiness(businessData)
-      setForm(stripId(businessData))
-      setEmailConnections(emailData)
-      setSubscription(subscriptionData)
+      setEmailConnections(
+        emailResult.status === "fulfilled" ? emailResult.value : [],
+      )
+
+      setSubscription(
+        subscriptionResult.status === "fulfilled"
+          ? subscriptionResult.value
+          : null,
+      )
     } catch (error) {
+      setBusiness(null)
+      setForm(null)
       setError(
         error instanceof ApiError
           ? error.message
-          : "We couldn't load your settings.",
+          : "We couldn't load your business settings.",
       )
     } finally {
       setIsLoading(false)
@@ -217,10 +229,31 @@ export function SettingsPage() {
     }
   }
 
-  if (isLoading || !form || !business) {
+  if (isLoading) {
     return (
       <section className="flex min-h-[60vh] items-center justify-center">
         <LoaderCircle className="size-6 animate-spin text-primary" />
+      </section>
+    )
+  }
+
+  if (!form || !business) {
+    return (
+      <section className="px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-xl rounded-2xl border border-border bg-card p-6 text-center">
+          <p className="text-lg font-semibold">Settings could not be loaded</p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            {error || "The business settings endpoint did not return a usable response."}
+          </p>
+          <button
+            type="button"
+            onClick={() => void loadSettings()}
+            className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"
+          >
+            <RefreshCw className="size-4" />
+            Retry
+          </button>
+        </div>
       </section>
     )
   }
