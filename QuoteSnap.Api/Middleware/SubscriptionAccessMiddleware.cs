@@ -85,8 +85,7 @@ public class SubscriptionAccessMiddleware
             path.StartsWith("/api/subscription") ||
             path.StartsWith("/api/subscription-payments") ||
             path.StartsWith("/api/business") ||
-            path.StartsWith("/api/notifications") ||
-            path.StartsWith("/api/email-connections");
+            path.StartsWith("/api/notifications");
     }
 
     private static bool IsProtectedMutation(
