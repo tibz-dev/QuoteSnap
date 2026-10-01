@@ -60,7 +60,15 @@ function defaultDueDate() {
   return date.toISOString().slice(0, 10)
 }
 
-export function InvoicesPage() {
+type InvoicesPageProps = {
+  createSignal?: number
+  onNavigate?: (destination: string) => void
+}
+
+export function InvoicesPage({
+  createSignal = 0,
+  onNavigate,
+}: InvoicesPageProps) {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [search, setSearch] = useState("")
@@ -71,10 +79,17 @@ export function InvoicesPage() {
   const [dueDate, setDueDate] = useState(defaultDueDate())
   const [isConverting, setIsConverting] = useState(false)
   const [convertError, setConvertError] = useState("")
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
 
   useEffect(() => {
     void loadData()
   }, [])
+
+  useEffect(() => {
+    if (createSignal > 0 && !isLoading) {
+      setIsCreateOpen(true)
+    }
+  }, [createSignal, isLoading])
 
   async function loadData() {
     try {
@@ -114,6 +129,7 @@ export function InvoicesPage() {
   }, [invoices, search])
 
   const openConversion = (quote: Quote) => {
+    setIsCreateOpen(false)
     setConvertingQuote(quote)
     setDueDate(defaultDueDate())
     setConvertError("")
@@ -175,6 +191,15 @@ export function InvoicesPage() {
               Convert accepted quotes and track what has been paid or is still due.
             </p>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsCreateOpen(true)}
+            className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95"
+          >
+            <FileCheck2 className="size-4" />
+            Create invoice
+          </button>
         </div>
 
         {acceptedQuotes.length > 0 && (
@@ -342,6 +367,89 @@ export function InvoicesPage() {
           )}
         </div>
       </div>
+
+      {isCreateOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 sm:items-center sm:p-6">
+          <button
+            type="button"
+            onClick={() => setIsCreateOpen(false)}
+            className="absolute inset-0 cursor-default"
+            aria-label="Close create invoice"
+          />
+
+          <div className="relative z-10 max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-t-3xl border border-border bg-card p-5 shadow-2xl sm:rounded-3xl sm:p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-semibold text-primary">NEW INVOICE</p>
+                <h3 className="mt-1 text-xl font-semibold">
+                  Choose an accepted quote
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  QuoteSnap creates invoices from accepted quotes so the customer,
+                  line items, tax and terms remain consistent.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCreateOpen(false)}
+                className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
+              >
+                <X className="size-4.5" />
+              </button>
+            </div>
+
+            {acceptedQuotes.length === 0 ? (
+              <div className="mt-6 rounded-2xl border border-dashed border-border bg-background p-6 text-center">
+                <FileCheck2 className="mx-auto size-7 text-muted-foreground" />
+                <p className="mt-3 text-sm font-semibold">
+                  No accepted quotes are ready
+                </p>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  Create a quote and mark it Accepted before converting it into an invoice.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreateOpen(false)
+                    onNavigate?.("Quotes")
+                  }}
+                  className="mt-5 inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3.5 text-xs font-semibold text-primary-foreground"
+                >
+                  Go to quotes
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="mt-6 space-y-3">
+                {acceptedQuotes.map((quote) => (
+                  <button
+                    key={quote.id}
+                    type="button"
+                    onClick={() => openConversion(quote)}
+                    className="flex w-full items-center justify-between gap-4 rounded-2xl border border-border bg-background p-4 text-left transition hover:bg-muted"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold">{quote.quoteNumber}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {quote.customerName}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold">
+                        {formatMoney(quote.total, quote.currencyCode)}
+                      </p>
+                      <p className="mt-1 flex items-center justify-end gap-1 text-xs font-semibold text-primary">
+                        Convert
+                        <ArrowRight className="size-3.5" />
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {convertingQuote && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 sm:items-center sm:p-6">
