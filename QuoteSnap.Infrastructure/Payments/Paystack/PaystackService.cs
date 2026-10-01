@@ -189,14 +189,116 @@ public class PaystackService
         public DateTime? PaidAt { get; set; }
     }
 
-    private void ValidateSettings()
+    public async Task DisableSubscriptionAsync(
+        string subscriptionCode,
+        string emailToken,
+        CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(
-                _settings.SecretKey))
+        ValidateSecretKey();
+
+        using var request =
+            new HttpRequestMessage(
+                HttpMethod.Post,
+                "subscription/disable");
+
+        request.Headers.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                _settings.SecretKey);
+
+        request.Content =
+            JsonContent.Create(new
+            {
+                code = subscriptionCode,
+                token = emailToken
+            });
+
+        using var response =
+            await _httpClient.SendAsync(
+                request,
+                cancellationToken);
+
+        var content =
+            await response.Content.ReadAsStringAsync(
+                cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
         {
             throw new InvalidOperationException(
-                "Paystack SecretKey is missing.");
+                $"Paystack subscription cancellation failed: {content}");
         }
+
+        var result =
+            JsonSerializer.Deserialize<PaystackActionResponse>(
+                content,
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+        if (result is null || !result.Status)
+        {
+            throw new InvalidOperationException(
+                result?.Message ??
+                "Paystack could not cancel the subscription.");
+        }
+    }
+
+    public async Task<string> GetSubscriptionManageLinkAsync(
+        string subscriptionCode,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSecretKey();
+
+        using var request =
+            new HttpRequestMessage(
+                HttpMethod.Get,
+                $"subscription/{Uri.EscapeDataString(subscriptionCode)}/manage/link");
+
+        request.Headers.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                _settings.SecretKey);
+
+        using var response =
+            await _httpClient.SendAsync(
+                request,
+                cancellationToken);
+
+        var content =
+            await response.Content.ReadAsStringAsync(
+                cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"Paystack subscription management failed: {content}");
+        }
+
+        var result =
+            JsonSerializer.Deserialize<PaystackManageLinkResponse>(
+                content,
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+        if (result is null ||
+            !result.Status ||
+            result.Data is null ||
+            string.IsNullOrWhiteSpace(result.Data.Link))
+        {
+            throw new InvalidOperationException(
+                result?.Message ??
+                "Paystack could not create a subscription management link.");
+        }
+
+        return result.Data.Link;
+    }
+
+    private void ValidateSettings()
+    {
+        ValidateSecretKey();
 
         if (string.IsNullOrWhiteSpace(
                 _settings.CallbackUrl))
@@ -204,6 +306,37 @@ public class PaystackService
             throw new InvalidOperationException(
                 "Paystack CallbackUrl is missing.");
         }
+    }
+
+    private void ValidateSecretKey()
+    {
+        if (string.IsNullOrWhiteSpace(
+                _settings.SecretKey))
+        {
+            throw new InvalidOperationException(
+                "Paystack SecretKey is missing.");
+        }
+    }
+
+    private sealed class PaystackActionResponse
+    {
+        public bool Status { get; set; }
+
+        public string? Message { get; set; }
+    }
+
+    private sealed class PaystackManageLinkResponse
+    {
+        public bool Status { get; set; }
+
+        public string? Message { get; set; }
+
+        public PaystackManageLinkData? Data { get; set; }
+    }
+
+    private sealed class PaystackManageLinkData
+    {
+        public string Link { get; set; } = string.Empty;
     }
 
     private sealed class PaystackInitializeResponse
