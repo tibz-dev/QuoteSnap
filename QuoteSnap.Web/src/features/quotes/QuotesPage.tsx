@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 import {
   CalendarDays,
+  Download,
   FileText,
   LoaderCircle,
   Plus,
@@ -102,6 +103,7 @@ export function QuotesPage({ onNavigate }: QuotesPageProps) {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null)
+  const [downloadingQuoteId, setDownloadingQuoteId] = useState<string | null>(null)
   const [formError, setFormError] = useState("")
   const [customerId, setCustomerId] = useState("")
   const [validUntil, setValidUntil] = useState(defaultValidUntil())
@@ -282,6 +284,30 @@ export function QuotesPage({ onNavigate }: QuotesPageProps) {
     }
   }
 
+  const handleDownload = async (quote: Quote) => {
+    try {
+      setDownloadingQuoteId(quote.id)
+      setError("")
+      const { blob, fileName } = await quoteApi.downloadPdf(quote.id)
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement("a")
+      anchor.href = url
+      anchor.download = fileName
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      setError(
+        error instanceof ApiError
+          ? error.message
+          : "We couldn't download this quote.",
+      )
+    } finally {
+      setDownloadingQuoteId(null)
+    }
+  }
+
   const handleStatusChange = async (quote: Quote, status: number) => {
     if (status === quote.status) return
 
@@ -454,17 +480,31 @@ export function QuotesPage({ onNavigate }: QuotesPageProps) {
                           {formatMoney(quote.total, quote.currencyCode)}
                         </td>
                         <td className="px-5 py-4 text-right">
-                          {quote.status === QuoteStatus.Accepted ? (
+                          <div className="flex justify-end gap-1">
                             <button
                               type="button"
-                              onClick={() => onNavigate?.("Invoices")}
-                              className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground"
+                              disabled={downloadingQuoteId === quote.id}
+                              onClick={() => void handleDownload(quote)}
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-2.5 text-xs font-semibold hover:bg-muted disabled:opacity-50"
                             >
-                              Invoice
+                              {downloadingQuoteId === quote.id ? (
+                                <LoaderCircle className="size-3.5 animate-spin" />
+                              ) : (
+                                <Download className="size-3.5" />
+                              )}
+                              PDF
                             </button>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
+
+                            {quote.status === QuoteStatus.Accepted && (
+                              <button
+                                type="button"
+                                onClick={() => onNavigate?.("Invoices")}
+                                className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground"
+                              >
+                                Invoice
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )
