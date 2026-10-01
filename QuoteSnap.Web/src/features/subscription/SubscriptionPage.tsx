@@ -94,6 +94,10 @@ export function SubscriptionPage({
 
   const currentPlan = overview?.subscription.plan ?? 1
   const currentStatus = overview?.subscription.status ?? 5
+  const isProTrial = overview?.isTrialUsingProAccess ?? false
+  const currentAccessName = isProTrial
+    ? `${overview?.effectivePlan.name ?? "Pro"} trial`
+    : planName(currentPlan)
 
   const renewalMessage = useMemo(() => {
     if (!overview) return ""
@@ -276,7 +280,7 @@ export function SubscriptionPage({
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-3">
                   <h3 className="text-3xl font-semibold">
-                    {planName(currentPlan)}
+                    {currentAccessName}
                   </h3>
                   <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground">
                     {statusLabels[currentStatus] || "Unknown"}
@@ -284,7 +288,7 @@ export function SubscriptionPage({
                 </div>
                 {overview.isTrialUsingProAccess && (
                   <p className="mt-2 text-sm font-medium text-primary">
-                    Your trial currently includes Pro-level access.
+                    Pro limits are active during your trial. Your account moves to Free plan limits when the trial ends.
                   </p>
                 )}
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -376,7 +380,7 @@ export function SubscriptionPage({
           <div>
             <h3 className="font-semibold">Current usage</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Usage is measured against your effective plan limits.
+              Usage is measured against the limits currently active on your account.
             </p>
           </div>
 
@@ -426,6 +430,8 @@ export function SubscriptionPage({
                 plan={plan}
                 currentPlan={currentPlan}
                 currentStatus={currentStatus}
+                effectivePlan={overview.effectivePlan.plan}
+                isTrialUsingProAccess={overview.isTrialUsingProAccess}
                 changingPlan={changingPlan}
                 onChoose={handleChangePlan}
               />
@@ -509,19 +515,32 @@ function PlanCard({
   plan,
   currentPlan,
   currentStatus,
+  effectivePlan,
+  isTrialUsingProAccess,
   changingPlan,
   onChoose,
 }: {
   plan: SubscriptionPlanDefinition
   currentPlan: number
   currentStatus: number
+  effectivePlan: number
+  isTrialUsingProAccess: boolean
   changingPlan: number | null
   onChoose: (plan: number) => Promise<void>
 }) {
   const samePlan = currentPlan === plan.plan
   const isCurrent =
+    !isTrialUsingProAccess &&
     samePlan &&
-    (currentStatus === 1 || currentStatus === 2)
+    currentStatus === 2
+
+  const isTrialPlan =
+    isTrialUsingProAccess &&
+    effectivePlan === plan.plan
+
+  const isFreeAfterTrial =
+    isTrialUsingProAccess &&
+    plan.plan === 1
 
   const isPaid = plan.plan === 2 || plan.plan === 3
   const isUpgrade = plan.plan > currentPlan
@@ -561,6 +580,16 @@ function PlanCard({
         {isCurrent && (
           <span className="rounded-full bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground">
             Current
+          </span>
+        )}
+        {isTrialPlan && (
+          <span className="rounded-full bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground">
+            Trial access
+          </span>
+        )}
+        {isFreeAfterTrial && (
+          <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+            After trial
           </span>
         )}
       </div>
@@ -607,7 +636,9 @@ function PlanCard({
           </button>
         ) : (
           <p className="rounded-xl bg-muted px-3 py-2.5 text-center text-xs leading-5 text-muted-foreground">
-            Paid plans return to Free only after cancellation / expiry.
+            {isFreeAfterTrial
+              ? "Your account moves to these Free limits when the trial ends."
+              : "Paid plans return to Free after cancellation or expiry."}
           </p>
         )}
       </div>
