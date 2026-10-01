@@ -1,4 +1,7 @@
-import { getAuthSession } from "@/features/auth/auth.storage"
+import {
+  clearAuthSession,
+  getAuthSession,
+} from "@/features/auth/auth.storage"
 
 export class ApiError extends Error {
   status: number
@@ -30,6 +33,15 @@ function createHeaders(init: RequestInit = {}) {
   }
 
   return headers
+}
+
+function handleUnauthorizedResponse(response: Response) {
+  if (response.status !== 401 || !getAuthSession()) {
+    return
+  }
+
+  clearAuthSession()
+  window.dispatchEvent(new Event("quotesnap:unauthorized"))
 }
 
 async function getErrorMessage(response: Response) {
@@ -69,6 +81,7 @@ async function request<T>(
   })
 
   if (!response.ok) {
+    handleUnauthorizedResponse(response)
     throw new ApiError(await getErrorMessage(response), response.status)
   }
 
@@ -99,6 +112,7 @@ async function download(path: string) {
   })
 
   if (!response.ok) {
+    handleUnauthorizedResponse(response)
     throw new ApiError(await getErrorMessage(response), response.status)
   }
 
