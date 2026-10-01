@@ -466,6 +466,34 @@ public class SubscriptionPaymentService
     }
 
    
+    public async Task ProcessSubscriptionNotRenewingAsync(
+        string subscriptionCode,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(subscriptionCode))
+            return;
+
+        var subscription =
+            await _dbContext.Subscriptions
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.PaymentProvider == "Paystack" &&
+                        x.ExternalSubscriptionId == subscriptionCode,
+                    cancellationToken);
+
+        if (subscription is null)
+            return;
+
+        var now = DateTime.UtcNow;
+
+        subscription.Status = SubscriptionStatus.Cancelled;
+        subscription.CancelledAt ??= now;
+        subscription.UpdatedAt = now;
+
+        await _dbContext.SaveChangesAsync(
+            cancellationToken);
+    }
+
     public async Task ProcessSubscriptionPaymentFailedAsync(
     string subscriptionCode,
     CancellationToken cancellationToken = default)
