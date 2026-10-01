@@ -97,6 +97,7 @@ export function QuotesPage() {
   const [error, setError] = useState("")
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null)
   const [formError, setFormError] = useState("")
   const [customerId, setCustomerId] = useState("")
   const [validUntil, setValidUntil] = useState(defaultValidUntil())
@@ -277,6 +278,27 @@ export function QuotesPage() {
     }
   }
 
+  const handleStatusChange = async (quote: Quote, status: number) => {
+    if (status === quote.status) return
+
+    try {
+      setUpdatingStatusId(quote.id)
+      setError("")
+      const updated = await quoteApi.updateStatus(quote.id, status)
+      setQuotes((current) =>
+        current.map((entry) => (entry.id === updated.id ? updated : entry)),
+      )
+    } catch (error) {
+      setError(
+        error instanceof ApiError
+          ? error.message
+          : "We couldn't update the quote status.",
+      )
+    } finally {
+      setUpdatingStatusId(null)
+    }
+  }
+
   return (
     <section className="px-4 py-7 sm:px-6 lg:px-8 lg:py-9">
       <div className="mx-auto max-w-[1500px]">
@@ -387,15 +409,38 @@ export function QuotesPage() {
                         </td>
                         <td className="px-5 py-4 text-sm">{quote.customerName}</td>
                         <td className="px-5 py-4">
-                          <span
-                            className="rounded-full px-2.5 py-1 text-xs font-semibold"
-                            style={{
-                              color: status.color,
-                              backgroundColor: status.background,
-                            }}
-                          >
-                            {status.label}
-                          </span>
+                          {quote.status === QuoteStatus.ConvertedToInvoice ? (
+                            <span
+                              className="rounded-full px-2.5 py-1 text-xs font-semibold"
+                              style={{
+                                color: status.color,
+                                backgroundColor: status.background,
+                              }}
+                            >
+                              {status.label}
+                            </span>
+                          ) : (
+                            <select
+                              value={quote.status}
+                              disabled={updatingStatusId === quote.id}
+                              onChange={(event) =>
+                                void handleStatusChange(
+                                  quote,
+                                  Number(event.target.value),
+                                )
+                              }
+                              className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-primary disabled:opacity-50"
+                              style={{ color: status.color }}
+                            >
+                              <option value={QuoteStatus.Draft}>Draft</option>
+                              <option value={QuoteStatus.Sent}>Sent</option>
+                              <option value={QuoteStatus.Viewed}>Viewed</option>
+                              <option value={QuoteStatus.Accepted}>Accepted</option>
+                              <option value={QuoteStatus.Declined}>Declined</option>
+                              <option value={QuoteStatus.Expired}>Expired</option>
+                              <option value={QuoteStatus.Cancelled}>Cancelled</option>
+                            </select>
+                          )}
                         </td>
                         <td className="px-5 py-4 text-xs text-muted-foreground">
                           {formatDate(quote.validUntil)}
