@@ -182,7 +182,9 @@ public class SubscriptionEntitlementService
         {
             Customers = await _dbContext.Customers
                 .CountAsync(
-                    x => x.BusinessId == businessId,
+                    x =>
+                        x.BusinessId == businessId &&
+                        x.IsActive,
                     cancellationToken),
 
             CatalogueItems = await _dbContext.CatalogueItems
