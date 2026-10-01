@@ -20,7 +20,9 @@ import type { AuthSession } from "@/features/auth/auth.types"
 import { ServicesPage } from "@/features/catalogue/ServicesPage"
 import { CustomersPage } from "@/features/customers/CustomersPage"
 import { InvoicesPage } from "@/features/invoices/InvoicesPage"
+import { PaymentsPage } from "@/features/payments/PaymentsPage"
 import { QuotesPage } from "@/features/quotes/QuotesPage"
+import { ReceiptsPage } from "@/features/receipts/ReceiptsPage"
 import { DashboardOverview } from "./DashboardOverview"
 
 type DashboardShellProps = {
@@ -224,9 +226,21 @@ export function DashboardShell({
 
         {activeItem === "Invoices" && <InvoicesPage />}
 
-        {!["Dashboard", "Customers", "Services", "Quotes", "Invoices"].includes(activeItem) && (
-          <ComingSoonPage title={activeItem} />
+        {activeItem === "Payments" && (
+          <PaymentsPage onNavigate={selectItem} />
         )}
+
+        {activeItem === "Receipts" && <ReceiptsPage />}
+
+        {![
+          "Dashboard",
+          "Customers",
+          "Services",
+          "Quotes",
+          "Invoices",
+          "Payments",
+          "Receipts",
+        ].includes(activeItem) && <ComingSoonPage title={activeItem} />}
       </div>
     </main>
   )
