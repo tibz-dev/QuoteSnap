@@ -114,6 +114,10 @@ export function DashboardShell({
     }
   }, [])
 
+  useEffect(() => {
+    document.title = `${activeItem} | QuoteSnap`
+  }, [activeItem])
+
   async function loadNotifications() {
     try {
       setNotificationsLoading(true)
@@ -143,8 +147,11 @@ export function DashboardShell({
   }).length
 
   const handleNewInvoice = () => {
+    if (activeItem !== "Invoices") {
+      updateWorkspaceUrl("Invoices")
+    }
+
     setActiveItem("Invoices")
-    updateWorkspaceUrl("Invoices")
     setMobileMenuOpen(false)
     setInvoiceCreateSignal((current) => current + 1)
   }
