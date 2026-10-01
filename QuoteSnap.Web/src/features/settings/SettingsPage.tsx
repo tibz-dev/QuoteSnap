@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 import {
-  BadgeDollarSign,
   Building2,
   CheckCircle2,
   CreditCard,
@@ -19,33 +18,20 @@ import type {
   BusinessSettings,
   BusinessSettingsInput,
   EmailConnection,
-  Subscription,
 } from "./settings.types"
 
-const planLabels: Record<number, string> = {
-  1: "Free",
-  2: "Pro",
-  3: "Business",
-}
-
-const statusLabels: Record<number, string> = {
-  1: "Trial",
-  2: "Active",
-  3: "Past due",
-  4: "Cancelled",
-  5: "Expired",
-}
-
-export function SettingsPage() {
+export function SettingsPage({
+  onNavigate,
+}: {
+  onNavigate: (destination: string) => void
+}) {
   const [business, setBusiness] = useState<BusinessSettings | null>(null)
   const [form, setForm] = useState<BusinessSettingsInput | null>(null)
   const [emailConnections, setEmailConnections] = useState<EmailConnection[]>([])
-  const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isConnectingEmail, setIsConnectingEmail] = useState(false)
   const [isDisconnectingEmail, setIsDisconnectingEmail] = useState(false)
-  const [upgradingPlan, setUpgradingPlan] = useState<number | null>(null)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
@@ -64,19 +50,12 @@ export function SettingsPage() {
       setBusiness(businessData)
       setForm(stripId(businessData))
 
-      const [emailResult, subscriptionResult] = await Promise.allSettled([
+      const emailResult = await Promise.allSettled([
         settingsApi.getEmailConnections(),
-        settingsApi.getSubscription(),
       ])
 
       setEmailConnections(
-        emailResult.status === "fulfilled" ? emailResult.value : [],
-      )
-
-      setSubscription(
-        subscriptionResult.status === "fulfilled"
-          ? subscriptionResult.value
-          : null,
+        emailResult[0].status === "fulfilled" ? emailResult[0].value : [],
       )
 
       const params = new URLSearchParams(window.location.search)
@@ -84,11 +63,6 @@ export function SettingsPage() {
 
       if (params.get("settings") === "email-connected") {
         returnMessage = "Google email connected successfully."
-      } else if (params.get("subscription") === "return") {
-        returnMessage =
-          params.get("status") === "success"
-            ? "Subscription payment confirmed successfully."
-            : "Payment return received. Subscription verification may still be processing."
       }
 
       if (returnMessage) {
@@ -227,23 +201,6 @@ export function SettingsPage() {
       )
     } finally {
       setIsDisconnectingEmail(false)
-    }
-  }
-
-  const handleUpgrade = async (plan: number) => {
-    try {
-      setUpgradingPlan(plan)
-      setError("")
-      setSuccess("")
-      const result = await settingsApi.initializeSubscription(plan)
-      window.location.assign(result.authorizationUrl)
-    } catch (error) {
-      setError(
-        error instanceof ApiError
-          ? error.message
-          : "We couldn't start subscription checkout.",
-      )
-      setUpgradingPlan(null)
     }
   }
 
@@ -549,73 +506,16 @@ export function SettingsPage() {
           <SettingsCard
             icon={CreditCard}
             title="Subscription"
-            description="Your current QuoteSnap plan and billing status."
+            description="Plans, usage limits, billing history and renewal are managed in the dedicated Subscription workspace."
           >
-            {subscription ? (
-              <>
-                <div className="rounded-2xl bg-accent p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-accent-foreground">
-                        CURRENT PLAN
-                      </p>
-                      <p className="mt-1 text-2xl font-semibold">
-                        {planLabels[subscription.plan] || "QuoteSnap"}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-card px-3 py-1 text-xs font-semibold">
-                      {statusLabels[subscription.status] || "Unknown"}
-                    </span>
-                  </div>
-
-                  {subscription.trialDaysRemaining !== null && (
-                    <p className="mt-4 text-sm text-accent-foreground">
-                      {subscription.trialDaysRemaining} trial{" "}
-                      {subscription.trialDaysRemaining === 1 ? "day" : "days"} remaining
-                    </p>
-                  )}
-
-                  {subscription.currentPeriodEndsAt && (
-                    <p className="mt-3 text-xs text-muted-foreground">
-                      Current period ends {formatDate(subscription.currentPeriodEndsAt)}
-                    </p>
-                  )}
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {[2, 3].map((plan) => (
-                    <button
-                      key={plan}
-                      type="button"
-                      disabled={
-                        upgradingPlan !== null || subscription.plan === plan
-                      }
-                      onClick={() => void handleUpgrade(plan)}
-                      className="rounded-xl border border-border bg-background p-4 text-left transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <div className="flex items-center gap-2">
-                        <BadgeDollarSign className="size-4 text-primary" />
-                        <span className="text-sm font-semibold">
-                          {planLabels[plan]}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                        {subscription.plan === plan
-                          ? "This is your current plan."
-                          : "Continue to secure Paystack checkout."}
-                      </p>
-                      {upgradingPlan === plan && (
-                        <LoaderCircle className="mt-3 size-4 animate-spin text-primary" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No subscription record is available for this business.
-              </p>
-            )}
+            <button
+              type="button"
+              onClick={() => onNavigate("Subscription")}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"
+            >
+              Open subscription
+              <ExternalLink className="size-4" />
+            </button>
           </SettingsCard>
         </div>
       </div>
