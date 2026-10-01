@@ -78,6 +78,27 @@ export function SettingsPage() {
           ? subscriptionResult.value
           : null,
       )
+
+      const params = new URLSearchParams(window.location.search)
+      let returnMessage = ""
+
+      if (params.get("settings") === "email-connected") {
+        returnMessage = "Google email connected successfully."
+      } else if (params.get("subscription") === "return") {
+        returnMessage =
+          params.get("status") === "success"
+            ? "Subscription payment confirmed successfully."
+            : "Payment return received. Subscription verification may still be processing."
+      }
+
+      if (returnMessage) {
+        setSuccess(returnMessage)
+        window.history.replaceState(
+          {},
+          "",
+          `${window.location.pathname}?view=settings`,
+        )
+      }
     } catch (error) {
       setBusiness(null)
       setForm(null)
@@ -161,10 +182,7 @@ export function SettingsPage() {
       setError("")
       setSuccess("")
       const result = await settingsApi.getGoogleConnectUrl()
-      window.open(result.authorizationUrl, "_blank", "noopener,noreferrer")
-      setSuccess(
-        "Google authorization opened in a new tab. Complete it there, then refresh email status here.",
-      )
+      window.location.assign(result.authorizationUrl)
     } catch (error) {
       setError(
         error instanceof ApiError
