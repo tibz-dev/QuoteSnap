@@ -20,6 +20,8 @@ export type BusinessSettings = {
   receiptPrefix: string
 }
 
+export type BusinessSettingsInput = Omit<BusinessSettings, "id">
+
 export type EmailConnection = {
   id: string
   provider: number
