@@ -47,20 +47,49 @@ const navigation = [
   { label: "Settings", icon: Settings },
 ]
 
+const workspaceViews = new Map(
+  navigation.map((item) => [item.label.toLowerCase(), item.label]),
+)
+
+function getWorkspaceViewFromUrl() {
+  const params = new URLSearchParams(window.location.search)
+
+  if (
+    params.has("settings") ||
+    params.get("subscription") === "return"
+  ) {
+    return "Settings"
+  }
+
+  return workspaceViews.get(params.get("view")?.toLowerCase() || "") ||
+    "Dashboard"
+}
+
+function updateWorkspaceUrl(label: string, mode: "push" | "replace" = "push") {
+  const url = new URL(window.location.href)
+
+  url.search = ""
+
+  if (label !== "Dashboard") {
+    url.searchParams.set("view", label.toLowerCase())
+  }
+
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`
+
+  if (mode === "replace") {
+    window.history.replaceState({}, "", nextUrl)
+  } else {
+    window.history.pushState({}, "", nextUrl)
+  }
+}
+
 export function DashboardShell({
   session,
   isDark,
   onToggleTheme,
   onSignOut,
 }: DashboardShellProps) {
-  const [activeItem, setActiveItem] = useState(() => {
-    const params = new URLSearchParams(window.location.search)
-
-    return params.has("settings") ||
-      params.get("subscription") === "return"
-      ? "Settings"
-      : "Dashboard"
-  })
+  const [activeItem, setActiveItem] = useState(getWorkspaceViewFromUrl)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [invoiceCreateSignal, setInvoiceCreateSignal] = useState(0)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -70,6 +99,19 @@ export function DashboardShell({
 
   useEffect(() => {
     void loadNotifications()
+  }, [])
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveItem(getWorkspaceViewFromUrl())
+      setMobileMenuOpen(false)
+    }
+
+    window.addEventListener("popstate", handlePopState)
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
   }, [])
 
   async function loadNotifications() {
@@ -88,15 +130,21 @@ export function DashboardShell({
     }
   }
 
-  const attentionCount = notifications.filter(
-    (notification) =>
-      notification.status === 1 ||
-      notification.status === 2 ||
-      notification.status === 4,
-  ).length
+  const attentionCount = notifications.filter((notification) => {
+    if (notification.status === 4) {
+      return true
+    }
+
+    if (notification.status !== 1 && notification.status !== 2) {
+      return false
+    }
+
+    return new Date(notification.scheduledFor).getTime() <= Date.now()
+  }).length
 
   const handleNewInvoice = () => {
     setActiveItem("Invoices")
+    updateWorkspaceUrl("Invoices")
     setMobileMenuOpen(false)
     setInvoiceCreateSignal((current) => current + 1)
   }
@@ -114,6 +162,10 @@ export function DashboardShell({
       .toUpperCase() || "QS"
 
   const selectItem = (label: string) => {
+    if (label !== activeItem) {
+      updateWorkspaceUrl(label)
+    }
+
     setActiveItem(label)
     setMobileMenuOpen(false)
   }
@@ -304,16 +356,7 @@ export function DashboardShell({
 
         {activeItem === "Settings" && <SettingsPage />}
 
-        {![
-          "Dashboard",
-          "Customers",
-          "Services",
-          "Quotes",
-          "Invoices",
-          "Payments",
-          "Receipts",
-          "Settings",
-        ].includes(activeItem) && <ComingSoonPage title={activeItem} />}
+
       </div>
 
       <NotificationsPanel
@@ -325,21 +368,5 @@ export function DashboardShell({
         onRefresh={() => void loadNotifications()}
       />
     </main>
-  )
-}
-
-function ComingSoonPage({ title }: { title: string }) {
-  return (
-    <section className="px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1500px] rounded-3xl border border-dashed border-border bg-card px-6 py-20 text-center">
-        <p className="text-sm font-semibold text-primary">NEXT MODULE</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em]">
-          {title}
-        </h2>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-          This module is next in the frontend rollout.
-        </p>
-      </div>
-    </section>
   )
 }
