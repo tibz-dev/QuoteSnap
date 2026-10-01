@@ -53,7 +53,14 @@ export function DashboardShell({
   onToggleTheme,
   onSignOut,
 }: DashboardShellProps) {
-  const [activeItem, setActiveItem] = useState("Dashboard")
+  const [activeItem, setActiveItem] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+
+    return params.has("settings") ||
+      params.get("subscription") === "return"
+      ? "Settings"
+      : "Dashboard"
+  })
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [invoiceCreateSignal, setInvoiceCreateSignal] = useState(0)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
