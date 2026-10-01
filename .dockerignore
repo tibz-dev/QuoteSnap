@@ -1,0 +1,16 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/node_modules/
+**/dist/
+**/.git/
+**/.idea/
+**/*.user
+**/*.suo
+**/*.log
+**/.env
+**/.env.*
+!QuoteSnap.Web/.env.example
+**/appsettings.Development.json
+**/appsettings.Local.json
