@@ -27,15 +27,18 @@ public class SubscriptionEntitlementService
     private readonly ApplicationDbContext _dbContext;
     private readonly ICurrentUserService _currentUser;
     private readonly SubscriptionSettings _settings;
+    private readonly SubscriptionService _subscriptionService;
 
     public SubscriptionEntitlementService(
         ApplicationDbContext dbContext,
         ICurrentUserService currentUser,
-        IOptions<SubscriptionSettings> options)
+        IOptions<SubscriptionSettings> options,
+        SubscriptionService subscriptionService)
     {
         _dbContext = dbContext;
         _currentUser = currentUser;
         _settings = options.Value;
+        _subscriptionService = subscriptionService;
     }
 
     public async Task<SubscriptionOverviewDto> GetOverviewAsync(
@@ -356,14 +359,24 @@ public class SubscriptionEntitlementService
         Guid businessId,
         CancellationToken cancellationToken)
     {
-        return await _dbContext.Subscriptions
-            .AsNoTracking()
-            .FirstOrDefaultAsync(
-                x => x.BusinessId == businessId,
-                cancellationToken)
-            ?? throw new SubscriptionAccessException(
-                "subscription_missing",
-                "Subscription information could not be found.");
+        var subscription =
+            await _dbContext.Subscriptions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.BusinessId == businessId,
+                    cancellationToken);
+
+        if (subscription is not null)
+        {
+            return subscription;
+        }
+
+        var created =
+            await _subscriptionService
+                .GetOrCreateCurrentEntityAsync(
+                    cancellationToken);
+
+        return created;
     }
 
     private static SubscriptionDto MapSubscription(
