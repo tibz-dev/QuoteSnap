@@ -45,3 +45,14 @@ export type Invoice = {
 export type ConvertQuoteToInvoiceInput = {
   dueDate: string | null
 }
+
+export type SendInvoiceEmailInput = {
+  to: string | null
+  subject: string | null
+  message: string | null
+}
+
+export type SendInvoiceEmailResponse = {
+  message: string
+  providerMessageId: string | null
+}
