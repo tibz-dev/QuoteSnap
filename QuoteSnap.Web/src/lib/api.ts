@@ -15,10 +15,7 @@ const API_BASE_URL = configuredBaseUrl
   ? configuredBaseUrl.replace(/\/$/, "")
   : ""
 
-async function request<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+function createHeaders(init: RequestInit = {}) {
   const session = getAuthSession()
   const headers = new Headers(init.headers)
 
@@ -32,37 +29,86 @@ async function request<T>(
     headers.set("Authorization", `Bearer ${session.token}`)
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers,
-  })
+  return headers
+}
 
+async function getErrorMessage(response: Response) {
   const rawBody = await response.text()
-  let payload: unknown = null
 
-  if (rawBody) {
-    try {
-      payload = JSON.parse(rawBody)
-    } catch {
-      payload = rawBody
-    }
+  if (!rawBody) {
+    return response.status === 401
+      ? "Your session has expired. Please sign in again."
+      : "Something went wrong. Please try again."
   }
 
-  if (!response.ok) {
-    const message =
+  try {
+    const payload = JSON.parse(rawBody) as unknown
+
+    if (
       typeof payload === "object" &&
       payload !== null &&
       "message" in payload &&
       typeof payload.message === "string"
-        ? payload.message
-        : response.status === 401
-          ? "Your session has expired. Please sign in again."
-          : "Something went wrong. Please try again."
-
-    throw new ApiError(message, response.status)
+    ) {
+      return payload.message
+    }
+  } catch {
+    return rawBody
   }
 
-  return payload as T
+  return "Something went wrong. Please try again."
+}
+
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: createHeaders(init),
+  })
+
+  if (!response.ok) {
+    throw new ApiError(await getErrorMessage(response), response.status)
+  }
+
+  if (response.status === 204) {
+    return undefined as T
+  }
+
+  const rawBody = await response.text()
+
+  if (!rawBody) {
+    return undefined as T
+  }
+
+  try {
+    return JSON.parse(rawBody) as T
+  } catch {
+    return rawBody as T
+  }
+}
+
+async function download(path: string) {
+  const headers = createHeaders()
+  headers.set("Accept", "application/pdf")
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "GET",
+    headers,
+  })
+
+  if (!response.ok) {
+    throw new ApiError(await getErrorMessage(response), response.status)
+  }
+
+  const disposition = response.headers.get("content-disposition")
+  const fileNameMatch = disposition?.match(/filename="?([^";]+)"?/i)
+
+  return {
+    blob: await response.blob(),
+    fileName: fileNameMatch?.[1] || "document.pdf",
+  }
 }
 
 export const api = {
@@ -74,6 +120,12 @@ export const api = {
     return request<TResponse>(path, {
       method: "POST",
       body: JSON.stringify(body),
+    })
+  },
+
+  postEmpty<TResponse>(path: string) {
+    return request<TResponse>(path, {
+      method: "POST",
     })
   },
 
@@ -96,4 +148,6 @@ export const api = {
       method: "DELETE",
     })
   },
+
+  download,
 }
