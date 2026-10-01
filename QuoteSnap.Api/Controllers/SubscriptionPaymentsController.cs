@@ -225,6 +225,26 @@ public class SubscriptionPaymentsController : ControllerBase
 
         if (string.Equals(
                 eventName,
+                "subscription.not_renew",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            var subscriptionCode =
+                GetSubscriptionCode(dataElement);
+
+            if (!string.IsNullOrWhiteSpace(
+                    subscriptionCode))
+            {
+                await _paymentService
+                    .ProcessSubscriptionNotRenewingAsync(
+                        subscriptionCode,
+                        cancellationToken);
+            }
+
+            return Ok();
+        }
+
+        if (string.Equals(
+                eventName,
                 "subscription.disable",
                 StringComparison.OrdinalIgnoreCase))
         {
@@ -260,8 +280,13 @@ public class SubscriptionPaymentsController : ControllerBase
         var reference =
             referenceElement.GetString();
 
-        if (string.IsNullOrWhiteSpace(reference))
+        if (string.IsNullOrWhiteSpace(reference) ||
+            !reference.StartsWith(
+                "QS-",
+                StringComparison.OrdinalIgnoreCase))
+        {
             return;
+        }
 
         await _paymentService
             .ProcessSuccessfulPaymentAsync(
