@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import {
+  BadgeDollarSign,
   Bell,
   ChevronDown,
   FileCheck2,
@@ -27,6 +28,9 @@ import { PaymentsPage } from "@/features/payments/PaymentsPage"
 import { QuotesPage } from "@/features/quotes/QuotesPage"
 import { ReceiptsPage } from "@/features/receipts/ReceiptsPage"
 import { SettingsPage } from "@/features/settings/SettingsPage"
+import { subscriptionApi } from "@/features/subscription/subscription.api"
+import { SubscriptionPage } from "@/features/subscription/SubscriptionPage"
+import type { SubscriptionOverview } from "@/features/subscription/subscription.types"
 import { DashboardOverview } from "./DashboardOverview"
 
 type DashboardShellProps = {
@@ -44,6 +48,7 @@ const navigation = [
   { label: "Invoices", icon: FileCheck2 },
   { label: "Payments", icon: WalletCards },
   { label: "Receipts", icon: ReceiptText },
+  { label: "Subscription", icon: BadgeDollarSign },
   { label: "Settings", icon: Settings },
 ]
 
@@ -54,11 +59,12 @@ const workspaceViews = new Map(
 function getWorkspaceViewFromUrl() {
   const params = new URLSearchParams(window.location.search)
 
-  if (
-    params.has("settings") ||
-    params.get("subscription") === "return"
-  ) {
+  if (params.has("settings")) {
     return "Settings"
+  }
+
+  if (params.get("subscription") === "return") {
+    return "Subscription"
   }
 
   return workspaceViews.get(params.get("view")?.toLowerCase() || "") ||
@@ -96,9 +102,12 @@ export function DashboardShell({
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [notificationsLoading, setNotificationsLoading] = useState(false)
   const [notificationsError, setNotificationsError] = useState("")
+  const [subscriptionOverview, setSubscriptionOverview] =
+    useState<SubscriptionOverview | null>(null)
 
   useEffect(() => {
     void loadNotifications()
+    void loadSubscriptionOverview()
   }, [])
 
   useEffect(() => {
@@ -116,6 +125,10 @@ export function DashboardShell({
 
   useEffect(() => {
     document.title = `${activeItem} | QuoteSnap`
+
+    if (activeItem === "Subscription") {
+      void loadSubscriptionOverview()
+    }
   }, [activeItem])
 
   async function loadNotifications() {
@@ -131,6 +144,14 @@ export function DashboardShell({
       )
     } finally {
       setNotificationsLoading(false)
+    }
+  }
+
+  async function loadSubscriptionOverview() {
+    try {
+      setSubscriptionOverview(await subscriptionApi.getOverview())
+    } catch {
+      setSubscriptionOverview(null)
     }
   }
 
@@ -332,6 +353,55 @@ export function DashboardShell({
           </div>
         </header>
 
+        {subscriptionOverview?.isReadOnly && (
+          <div
+            className="flex flex-col gap-3 border-b px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"
+            style={{
+              color: "var(--status-danger)",
+              backgroundColor: "var(--status-danger-bg)",
+              borderColor: "var(--border)",
+            }}
+          >
+            <span>
+              {subscriptionOverview.accessMessage ||
+                "Your subscription is read-only until billing is resolved."}
+            </span>
+            <button
+              type="button"
+              onClick={() => selectItem("Subscription")}
+              className="self-start font-semibold underline sm:self-auto"
+            >
+              Manage subscription
+            </button>
+          </div>
+        )}
+
+        {!subscriptionOverview?.isReadOnly &&
+          subscriptionOverview?.subscription.status === 1 &&
+          (subscriptionOverview.subscription.trialDaysRemaining ?? 99) <= 3 && (
+            <div
+              className="flex flex-col gap-3 border-b px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"
+              style={{
+                color: "var(--status-warning)",
+                backgroundColor: "var(--status-warning-bg)",
+                borderColor: "var(--border)",
+              }}
+            >
+              <span>
+                Your QuoteSnap trial ends in{" "}
+                {subscriptionOverview.subscription.trialDaysRemaining ?? 0}{" "}
+                days.
+              </span>
+              <button
+                type="button"
+                onClick={() => selectItem("Subscription")}
+                className="self-start font-semibold underline sm:self-auto"
+              >
+                View plans
+              </button>
+            </div>
+          )}
+
         {activeItem === "Dashboard" && (
           <DashboardOverview
             displayName={session.firstName || displayName}
@@ -360,6 +430,8 @@ export function DashboardShell({
         )}
 
         {activeItem === "Receipts" && <ReceiptsPage />}
+
+        {activeItem === "Subscription" && <SubscriptionPage />}
 
         {activeItem === "Settings" && <SettingsPage />}
 
