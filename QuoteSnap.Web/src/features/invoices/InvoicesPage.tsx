@@ -3,9 +3,12 @@ import {
   ArrowRight,
   CalendarDays,
   CheckCircle2,
+  Download,
   Eye,
   FileCheck2,
   LoaderCircle,
+  Mail,
+  Send,
   Search,
   X,
 } from "lucide-react"
@@ -448,9 +451,72 @@ function InvoiceDetail({
   invoice: Invoice
   onClose: () => void
 }) {
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [isEmailOpen, setIsEmailOpen] = useState(false)
+  const [isSending, setIsSending] = useState(false)
+  const [emailTo, setEmailTo] = useState("")
+  const [emailSubject, setEmailSubject] = useState("")
+  const [emailMessage, setEmailMessage] = useState("")
+  const [deliveryError, setDeliveryError] = useState("")
+  const [deliverySuccess, setDeliverySuccess] = useState("")
+
   const status =
     invoiceStatusStyles[invoice.status] ||
     invoiceStatusStyles[InvoiceStatus.Draft]
+
+  const handleDownload = async () => {
+    try {
+      setIsDownloading(true)
+      setDeliveryError("")
+      setDeliverySuccess("")
+
+      const { blob, fileName } = await invoiceApi.downloadPdf(invoice.id)
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement("a")
+      anchor.href = url
+      anchor.download = fileName
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      setDeliveryError(
+        error instanceof ApiError
+          ? error.message
+          : "We couldn't download this invoice.",
+      )
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  const handleSendEmail = async () => {
+    try {
+      setIsSending(true)
+      setDeliveryError("")
+      setDeliverySuccess("")
+
+      const result = await invoiceApi.sendEmail(invoice.id, {
+        to: emailTo.trim() || null,
+        subject: emailSubject.trim() || null,
+        message: emailMessage.trim() || null,
+      })
+
+      setDeliverySuccess(result.message || "Invoice email sent successfully.")
+      setIsEmailOpen(false)
+      setEmailTo("")
+      setEmailSubject("")
+      setEmailMessage("")
+    } catch (error) {
+      setDeliveryError(
+        error instanceof ApiError
+          ? error.message
+          : "We couldn't send this invoice email.",
+      )
+    } finally {
+      setIsSending(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 sm:items-center sm:p-6">
@@ -491,6 +557,59 @@ function InvoiceDetail({
         </div>
 
         <div className="space-y-6 p-5 sm:p-6">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={isDownloading}
+              onClick={() => void handleDownload()}
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted disabled:opacity-50"
+            >
+              {isDownloading ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : (
+                <Download className="size-4" />
+              )}
+              Download PDF
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setDeliveryError("")
+                setDeliverySuccess("")
+                setIsEmailOpen(true)
+              }}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"
+            >
+              <Mail className="size-4" />
+              Send email
+            </button>
+          </div>
+
+          {deliverySuccess && (
+            <div
+              className="rounded-xl px-4 py-3 text-sm"
+              style={{
+                color: "var(--status-success)",
+                backgroundColor: "var(--status-success-bg)",
+              }}
+            >
+              {deliverySuccess}
+            </div>
+          )}
+
+          {deliveryError && (
+            <div
+              className="rounded-xl px-4 py-3 text-sm"
+              style={{
+                color: "var(--status-danger)",
+                backgroundColor: "var(--status-danger-bg)",
+              }}
+            >
+              {deliveryError}
+            </div>
+          )}
+
           <div className="grid gap-3 sm:grid-cols-4">
             <Metric label="Issue date" value={formatDate(invoice.issueDate)} />
             <Metric label="Due date" value={formatDate(invoice.dueDate)} />
@@ -598,6 +717,98 @@ function InvoiceDetail({
           )}
         </div>
       </div>
+
+      {isEmailOpen && (
+        <div className="absolute inset-0 z-20 flex items-end justify-center bg-black/35 sm:items-center sm:p-6">
+          <button
+            type="button"
+            onClick={() => !isSending && setIsEmailOpen(false)}
+            className="absolute inset-0 cursor-default"
+            aria-label="Close email form"
+          />
+
+          <div className="relative z-10 w-full max-w-lg rounded-t-3xl border border-border bg-card p-5 shadow-2xl sm:rounded-3xl sm:p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-semibold text-primary">SEND INVOICE</p>
+                <h4 className="mt-1 text-lg font-semibold">
+                  {invoice.invoiceNumber}
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEmailOpen(false)}
+                disabled={isSending}
+                className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-50"
+              >
+                <X className="size-4.5" />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium">To</span>
+                <input
+                  type="email"
+                  value={emailTo}
+                  onChange={(event) => setEmailTo(event.target.value)}
+                  placeholder="Leave blank to use the customer's email"
+                  className="h-11 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none placeholder:text-muted-foreground/70 focus:border-primary"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium">Subject</span>
+                <input
+                  value={emailSubject}
+                  onChange={(event) => setEmailSubject(event.target.value)}
+                  placeholder="Use QuoteSnap default subject"
+                  className="h-11 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none placeholder:text-muted-foreground/70 focus:border-primary"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium">Message</span>
+                <textarea
+                  rows={4}
+                  value={emailMessage}
+                  onChange={(event) => setEmailMessage(event.target.value)}
+                  placeholder="Optional message to the customer"
+                  className="w-full resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/70 focus:border-primary"
+                />
+              </label>
+
+              <p className="text-xs leading-5 text-muted-foreground">
+                QuoteSnap generates the invoice PDF and attaches it automatically.
+              </p>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setIsEmailOpen(false)}
+                disabled={isSending}
+                className="h-10 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSendEmail()}
+                disabled={isSending}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {isSending ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <Send className="size-4" />
+                )}
+                Send invoice
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
