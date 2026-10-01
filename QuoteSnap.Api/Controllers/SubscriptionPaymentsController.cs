@@ -120,7 +120,8 @@ public class SubscriptionPaymentsController : ControllerBase
             Uri.EscapeDataString(paymentReference ?? string.Empty);
 
         return Redirect(
-            $"{frontendBaseUrl}/?subscription=return" +
+            $"{frontendBaseUrl}/?view=subscription" +
+            $"&subscription=return" +
             $"&status={status}" +
             $"&reference={encodedReference}");
     }
