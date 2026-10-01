@@ -433,6 +433,17 @@ public class SubscriptionPaymentService
         var renewalReference =
             $"RENEW-{subscriptionCode}-{now:yyyyMM}";
 
+        var recentSuccessfulPayment =
+            await _dbContext.SubscriptionPayments
+                .AnyAsync(
+                    x =>
+                        x.BusinessId == subscription.BusinessId &&
+                        x.Plan == subscription.Plan &&
+                        x.Status == SubscriptionPaymentStatus.Successful &&
+                        x.PaidAt.HasValue &&
+                        x.PaidAt.Value >= now.AddHours(-12),
+                    cancellationToken);
+
         var alreadyRecorded =
             await _dbContext.SubscriptionPayments
                 .AnyAsync(
@@ -441,7 +452,8 @@ public class SubscriptionPaymentService
                         x.ExternalReference == renewalReference,
                     cancellationToken);
 
-        if (!alreadyRecorded &&
+        if (!recentSuccessfulPayment &&
+            !alreadyRecorded &&
             subscription.Plan != SubscriptionPlan.Free)
         {
             _dbContext.SubscriptionPayments.Add(
