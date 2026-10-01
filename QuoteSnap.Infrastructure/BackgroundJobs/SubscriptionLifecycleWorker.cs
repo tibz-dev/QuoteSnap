@@ -85,8 +85,10 @@ public class SubscriptionLifecycleWorker : BackgroundService
 
         var expiredSubscriptions =
             await dbContext.Subscriptions
+                .Include(x => x.Business)
                 .Where(x =>
-                    x.Status == SubscriptionStatus.Active &&
+                    (x.Status == SubscriptionStatus.Active ||
+                     x.Status == SubscriptionStatus.Cancelled) &&
                     x.CurrentPeriodEndsAt.HasValue &&
                     x.CurrentPeriodEndsAt.Value <= now)
                 .ToListAsync(cancellationToken);
@@ -98,6 +100,11 @@ public class SubscriptionLifecycleWorker : BackgroundService
 
             subscription.EndedAt = now;
             subscription.UpdatedAt = now;
+
+            subscription.Business.SubscriptionPlan =
+                SubscriptionPlan.Free;
+
+            subscription.Business.UpdatedAt = now;
         }
 
         if (expiredTrials.Count > 0 ||
