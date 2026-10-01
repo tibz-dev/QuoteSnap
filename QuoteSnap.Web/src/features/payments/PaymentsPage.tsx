@@ -191,7 +191,9 @@ export function PaymentsPage({
         amount: paymentAmount,
         method,
         paymentDate: paymentDate
-          ? new Date(`${paymentDate}T12:00:00`).toISOString()
+          ? paymentDate === today()
+            ? new Date().toISOString()
+            : new Date(`${paymentDate}T12:00:00`).toISOString()
           : null,
         reference: reference.trim() || null,
         notes: notes.trim() || null,
