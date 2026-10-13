@@ -16,6 +16,8 @@ public class Customer : TenantEntity
 
     public string? TaxRegistrationNumber { get; set; }
 
+    public bool IsActive { get; set; } = true;
+
     public Business Business { get; set; } = null!;
 
     public ICollection<Quote> Quotes { get; set; }

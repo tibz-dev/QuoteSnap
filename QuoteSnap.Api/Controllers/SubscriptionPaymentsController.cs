@@ -13,13 +13,16 @@ public class SubscriptionPaymentsController : ControllerBase
 {
     private readonly SubscriptionPaymentService _paymentService;
     private readonly PaystackWebhookValidator _webhookValidator;
+    private readonly IConfiguration _configuration;
 
     public SubscriptionPaymentsController(
         SubscriptionPaymentService paymentService,
-        PaystackWebhookValidator webhookValidator)
+        PaystackWebhookValidator webhookValidator,
+        IConfiguration configuration)
     {
         _paymentService = paymentService;
         _webhookValidator = webhookValidator;
+        _configuration = configuration;
     }
 
     [Authorize]
@@ -75,6 +78,52 @@ public class SubscriptionPaymentsController : ControllerBase
                 message = ex.Message
             });
         }
+    }
+
+    [AllowAnonymous]
+    [HttpGet("callback")]
+    public async Task<IActionResult> Callback(
+        [FromQuery] string? reference,
+        [FromQuery] string? trxref,
+        CancellationToken cancellationToken)
+    {
+        var paymentReference =
+            !string.IsNullOrWhiteSpace(reference)
+                ? reference
+                : trxref;
+
+        var frontendBaseUrl =
+            (_configuration["App:FrontendBaseUrl"]
+                ?? "http://localhost:5173")
+            .TrimEnd('/');
+
+        var status = "processing";
+
+        if (!string.IsNullOrWhiteSpace(paymentReference))
+        {
+            try
+            {
+                await _paymentService
+                    .ProcessSuccessfulPaymentAsync(
+                        paymentReference,
+                        cancellationToken);
+
+                status = "success";
+            }
+            catch
+            {
+                status = "processing";
+            }
+        }
+
+        var encodedReference =
+            Uri.EscapeDataString(paymentReference ?? string.Empty);
+
+        return Redirect(
+            $"{frontendBaseUrl}/?view=subscription" +
+            $"&subscription=return" +
+            $"&status={status}" +
+            $"&reference={encodedReference}");
     }
 
     [AllowAnonymous]
@@ -177,6 +226,26 @@ public class SubscriptionPaymentsController : ControllerBase
 
         if (string.Equals(
                 eventName,
+                "subscription.not_renew",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            var subscriptionCode =
+                GetSubscriptionCode(dataElement);
+
+            if (!string.IsNullOrWhiteSpace(
+                    subscriptionCode))
+            {
+                await _paymentService
+                    .ProcessSubscriptionNotRenewingAsync(
+                        subscriptionCode,
+                        cancellationToken);
+            }
+
+            return Ok();
+        }
+
+        if (string.Equals(
+                eventName,
                 "subscription.disable",
                 StringComparison.OrdinalIgnoreCase))
         {
@@ -212,8 +281,13 @@ public class SubscriptionPaymentsController : ControllerBase
         var reference =
             referenceElement.GetString();
 
-        if (string.IsNullOrWhiteSpace(reference))
+        if (string.IsNullOrWhiteSpace(reference) ||
+            !reference.StartsWith(
+                "QS-",
+                StringComparison.OrdinalIgnoreCase))
+        {
             return;
+        }
 
         await _paymentService
             .ProcessSuccessfulPaymentAsync(

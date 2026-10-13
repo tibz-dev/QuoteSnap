@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using QuoteSnap.Application.Authentication;
 using QuoteSnap.Domain.Entities;
@@ -19,6 +20,8 @@ public class AuthService
     private readonly JwtTokenService _jwtTokenService;
     private readonly NotificationService _notificationService;
     private readonly SubscriptionSettings _subscriptionSettings;
+    private readonly string _frontendBaseUrl;
+    private readonly string _apiBaseUrl;
 
     public AuthService(
         ApplicationDbContext dbContext,
@@ -26,7 +29,8 @@ public class AuthService
         RoleManager<IdentityRole<Guid>> roleManager,
         JwtTokenService jwtTokenService, 
         NotificationService notificationService,
-        IOptions<SubscriptionSettings> subscriptionOptions)
+        IOptions<SubscriptionSettings> subscriptionOptions,
+        IConfiguration configuration)
     {
         _dbContext = dbContext;
         _userManager = userManager;
@@ -34,6 +38,15 @@ public class AuthService
         _jwtTokenService = jwtTokenService;
         _notificationService = notificationService;
         _subscriptionSettings = subscriptionOptions.Value;
+        _frontendBaseUrl =
+            (configuration["App:FrontendBaseUrl"]
+                ?? "http://localhost:5173")
+            .TrimEnd('/');
+
+        _apiBaseUrl =
+            (configuration["App:ApiBaseUrl"]
+                ?? "https://localhost:7011")
+            .TrimEnd('/');
 
     }
 
@@ -455,8 +468,8 @@ public class AuthService
             Uri.EscapeDataString(token);
 
         var resetUrl =
-            $"https://localhost:7011/api/auth/reset-password" +
-            $"?userId={user.Id}" +
+            $"{_frontendBaseUrl}/?mode=reset-password" +
+            $"&userId={user.Id}" +
             $"&token={encodedToken}";
 
         var safeFirstName =
@@ -593,7 +606,7 @@ public class AuthService
             Uri.EscapeDataString(token);
 
         var verificationUrl =
-            $"https://localhost:7011/api/auth/verify-email" +
+            $"{_apiBaseUrl}/api/auth/verify-email" +
             $"?userId={user.Id}" +
             $"&token={encodedToken}";
 

@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using QuoteSnap.Api.Middleware;
 using QuoteSnap.Api.Services;
 using QuoteSnap.Application.Common.Interfaces;
 using QuoteSnap.Application.Email;
@@ -25,6 +27,39 @@ var builder = WebApplication.CreateBuilder(args);
 // Controllers
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddHealthChecks();
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor |
+        ForwardedHeaders.XForwardedProto;
+
+    options.ForwardLimit = 1;
+
+    // Production hosts commonly terminate TLS at a reverse proxy.
+    // Restrict trusted proxy networks at the platform level.
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+var frontendBaseUrl =
+    (builder.Configuration["App:FrontendBaseUrl"]
+        ?? "http://localhost:5173")
+    .TrimEnd('/');
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(
+        "Frontend",
+        policy =>
+        {
+            policy
+                .WithOrigins(frontendBaseUrl)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
+});
 
 // SQL Server Express
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -66,6 +101,7 @@ builder.Services.Configure<SubscriptionSettings>(
         SubscriptionSettings.SectionName));
 
 builder.Services.AddScoped<SubscriptionService>();
+builder.Services.AddScoped<SubscriptionEntitlementService>();
 
 builder.Services.AddHostedService<
     SubscriptionLifecycleWorker>();
@@ -126,6 +162,7 @@ builder.Services.AddScoped<CatalogueItemService>();
 builder.Services.AddScoped<QuoteService>();
 builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<ReceiptService>();
+builder.Services.AddScoped<BusinessSettingsService>();
 builder.Services.AddScoped<PdfService>();
 builder.Services.AddScoped<NotificationService>();
 
@@ -155,18 +192,26 @@ builder.Services.AddScoped<InvoiceEmailService>();
 
 builder.Services.AddScoped<GoogleOAuthService>();
 
-builder.Services.AddDataProtection()
+var dataProtection = builder.Services
+    .AddDataProtection()
     .SetApplicationName("QuoteSnap");
+
+var dataProtectionKeysPath =
+    builder.Configuration["DataProtection:KeysPath"];
+
+if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    Directory.CreateDirectory(dataProtectionKeysPath);
+
+    dataProtection.PersistKeysToFileSystem(
+        new DirectoryInfo(dataProtectionKeysPath));
+}
 
 builder.Services.AddScoped<ITokenProtectionService,TokenProtectionService>();
 
 builder.Services.AddScoped<GoogleOAuthStateService>();
 
 builder.Services.AddScoped<EmailConnectionService>();
-
-builder.Services.AddScoped<GoogleOAuthService>();
-
-builder.Services.AddScoped<GoogleOAuthStateService>();
 
 builder.Services.AddScoped<DocumentDeliveryService>();
 
@@ -215,18 +260,33 @@ QuestPDF.Settings.License =
 
 var app = builder.Build();
 
-// Development
-if (app.Environment.IsDevelopment())
+// Swagger
+var swaggerEnabled =
+    app.Environment.IsDevelopment() ||
+    builder.Configuration.GetValue<bool>("Swagger:Enabled");
+
+if (swaggerEnabled)
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+app.UseForwardedHeaders();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
 app.UseHttpsRedirection();
 
+app.UseCors("Frontend");
+
 app.UseAuthentication();
+app.UseMiddleware<SubscriptionAccessMiddleware>();
 app.UseAuthorization();
 
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 app.Run();

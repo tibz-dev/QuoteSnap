@@ -15,12 +15,14 @@ public class EmailConnectionsController : ControllerBase
     private readonly GoogleOAuthService _googleOAuthService;
     private readonly GoogleOAuthStateService _stateService;
     private readonly ICurrentUserService _currentUser;
+    private readonly IConfiguration _configuration;
 
     public EmailConnectionsController(
         EmailConnectionService emailConnectionService,
         GoogleOAuthService googleOAuthService,
         GoogleOAuthStateService stateService,
-        ICurrentUserService currentUser)
+        ICurrentUserService currentUser,
+        IConfiguration configuration)
     {
         _emailConnectionService =
             emailConnectionService;
@@ -33,6 +35,9 @@ public class EmailConnectionsController : ControllerBase
 
         _currentUser =
             currentUser;
+
+        _configuration =
+            configuration;
     }
 
     [Authorize]
@@ -117,11 +122,13 @@ public class EmailConnectionsController : ControllerBase
                     oauthState.BusinessId,
                     cancellationToken);
 
-            return Ok(new
-            {
-                message =
-                    "Google account connected successfully."
-            });
+            var frontendBaseUrl =
+                (_configuration["App:FrontendBaseUrl"]
+                    ?? "http://localhost:5173")
+                .TrimEnd('/');
+
+            return Redirect(
+                $"{frontendBaseUrl}/?settings=email-connected");
         }
         catch (Exception ex)
         {

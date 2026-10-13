@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - feature/frontend-foundation
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore backend
+        run: dotnet restore QuoteSnap.sln
+
+      - name: Build backend
+        run: dotnet build QuoteSnap.sln --configuration Release --no-restore
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: QuoteSnap.Web/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: QuoteSnap.Web
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: QuoteSnap.Web
+        run: npm run build
