@@ -118,7 +118,7 @@ public class NotificationWorker : BackgroundService
                     notification.SentAt =
                         DateTime.UtcNow;
 
-                    notification.Provider = "Brevo";
+                    notification.Provider = "Gmail";
 
                     notification.ProviderMessageId =
                         result.ProviderMessageId;

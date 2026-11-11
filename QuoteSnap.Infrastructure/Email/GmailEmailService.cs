@@ -1,12 +1,5 @@
-using Google.Apis.Auth.OAuth2;
-using Google.Apis.Auth.OAuth2.Flows;
-using Google.Apis.Auth.OAuth2.Responses;
-using Google.Apis.Gmail.v1;
-using Google.Apis.Gmail.v1.Data;
-using Google.Apis.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using MimeKit;
 using QuoteSnap.Application.Common.Interfaces;
 using QuoteSnap.Application.Email;
 using QuoteSnap.Application.Security;
@@ -84,82 +77,14 @@ public class GmailEmailService : IEmailService
                 _tokenProtection.Unprotect(
                     connection.EncryptedRefreshToken);
 
-            var flow =
-                new GoogleAuthorizationCodeFlow(
-                    new GoogleAuthorizationCodeFlow.Initializer
-                    {
-                        ClientSecrets =
-                            new ClientSecrets
-                            {
-                                ClientId =
-                                    _settings.ClientId,
-
-                                ClientSecret =
-                                    _settings.ClientSecret
-                            },
-
-                        Scopes =
-                        [
-                            GmailService.Scope.GmailSend
-                        ]
-                    });
-
-            var tokenResponse =
-                new TokenResponse
-                {
-                    RefreshToken = refreshToken
-                };
-
-            var credential =
-                new UserCredential(
-                    flow,
-                    businessId.ToString(),
-                    tokenResponse);
-
-            using var gmailService =
-                new GmailService(
-                    new BaseClientService.Initializer
-                    {
-                        HttpClientInitializer =
-                            credential,
-
-                        ApplicationName =
-                            "QuoteSnap"
-                    });
-
-            var mimeMessage =
-                BuildMimeMessage(
+            var providerMessageId =
+                await GmailMessageSender.SendAsync(
+                    _settings,
+                    refreshToken,
                     message,
                     connection.EmailAddress,
-                    business.Name);
-
-            using var stream =
-                new MemoryStream();
-
-            await mimeMessage.WriteToAsync(
-                stream,
-                cancellationToken);
-
-            var rawMessage =
-                Convert.ToBase64String(
-                        stream.ToArray())
-                    .Replace("+", "-")
-                    .Replace("/", "_")
-                    .Replace("=", "");
-
-            var gmailMessage =
-                new Message
-                {
-                    Raw = rawMessage
-                };
-
-            var request =
-                gmailService.Users.Messages.Send(
-                    gmailMessage,
-                    "me");
-
-            var response =
-                await request.ExecuteAsync(
+                    business.Name,
+                    message.ReplyTo,
                     cancellationToken);
 
             connection.LastUsedAt =
@@ -174,7 +99,7 @@ public class GmailEmailService : IEmailService
             return new EmailSendResult
             {
                 Success = true,
-                ProviderMessageId = response.Id
+                ProviderMessageId = providerMessageId
             };
         }
         catch (Exception ex)
@@ -185,56 +110,6 @@ public class GmailEmailService : IEmailService
                 ErrorMessage = ex.Message
             };
         }
-    }
-
-    private static MimeMessage BuildMimeMessage(
-        EmailMessage message,
-        string senderEmail,
-        string senderName)
-    {
-        var mimeMessage =
-            new MimeMessage();
-
-        mimeMessage.From.Add(
-            new MailboxAddress(
-                senderName,
-                senderEmail));
-
-        mimeMessage.To.Add(
-            MailboxAddress.Parse(
-                message.To));
-
-        mimeMessage.Subject =
-            message.Subject;
-
-        if (!string.IsNullOrWhiteSpace(
-                message.ReplyTo))
-        {
-            mimeMessage.ReplyTo.Add(
-                MailboxAddress.Parse(
-                    message.ReplyTo));
-        }
-
-        var bodyBuilder =
-            new BodyBuilder
-            {
-                HtmlBody = message.HtmlBody
-            };
-
-        foreach (var attachment
-                 in message.Attachments)
-        {
-            bodyBuilder.Attachments.Add(
-                attachment.FileName,
-                attachment.Content,
-                ContentType.Parse(
-                    attachment.ContentType));
-        }
-
-        mimeMessage.Body =
-            bodyBuilder.ToMessageBody();
-
-        return mimeMessage;
     }
 
     private Guid GetBusinessId()

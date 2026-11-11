@@ -7,7 +7,7 @@ QuoteSnap is a split deployment:
 - SQL Server: production database.
 - Paystack: subscription checkout and recurring billing.
 - Google OAuth/Gmail: optional invoice delivery connection.
-- Brevo: system emails such as verification and password reset.
+- Gmail API with a dedicated sender: system emails such as verification and password reset.
 
 ## 1. Frontend
 
@@ -96,14 +96,16 @@ Gmail__RedirectUri=https://YOUR_API_HOST/api/email-connections/google/callback
 
 Register the exact same redirect URI in the Google Cloud OAuth client.
 
-### System email / Brevo
+### System email / Gmail
 
 ```text
-SystemEmail__ApiKey=YOUR_BREVO_API_KEY
-SystemEmail__SenderEmail=YOUR_VERIFIED_SENDER
+SystemEmail__RefreshToken=YOUR_SYSTEM_GMAIL_REFRESH_TOKEN
+SystemEmail__SenderEmail=YOUR_SYSTEM_GMAIL_ADDRESS
 SystemEmail__SenderName=QuoteSnap
 SystemEmail__ReplyToEmail=YOUR_REPLY_TO_EMAIL
 ```
+
+Authorize the system sender account with the `gmail.send` scope and offline access using the same OAuth client configured in `Gmail__ClientId` and `Gmail__ClientSecret`. Use that account’s refresh token and email address above. These credentials are for the notification worker. Businesses still connect their own Gmail accounts to send invoices.
 
 ### Persistent ASP.NET Data Protection keys
 
@@ -175,7 +177,7 @@ After deployment, test in this order:
 
 ## 7. Production security notes
 
-- Never commit JWT, Paystack, Google, Brevo, or database secrets.
+- Never commit JWT, Paystack, Google, or database secrets.
 - Use live Paystack keys only after the full test-mode flow passes.
 - Rotate any bearer token or secret that is accidentally pasted into logs or chat.
 - Keep Swagger development-only.

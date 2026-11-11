@@ -174,9 +174,9 @@ builder.Services.Configure<SystemEmailSettings>(
     builder.Configuration.GetSection(
         SystemEmailSettings.SectionName));
 
-builder.Services.AddHttpClient<
+builder.Services.AddScoped<
     ISystemEmailService,
-    BrevoSystemEmailService>();
+    GmailSystemEmailService>();
 
 builder.Services.AddScoped<
     ICurrentUserService,
